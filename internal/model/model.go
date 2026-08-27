@@ -8,6 +8,7 @@ import "fmt"
 // Kind is the workload kind capsize attributes a pod to.
 type Kind string
 
+// The workload kinds capsize attributes pods to.
 const (
 	KindDeployment  Kind = "Deployment"
 	KindStatefulSet Kind = "StatefulSet"
@@ -148,6 +149,7 @@ func (w *Workload) CPURequest() int64 {
 // decides the order things are evicted in when a node runs short.
 type QoSClass string
 
+// The quality-of-service classes the kubelet assigns.
 const (
 	QoSGuaranteed QoSClass = "Guaranteed"
 	QoSBurstable  QoSClass = "Burstable"

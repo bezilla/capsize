@@ -1,6 +1,6 @@
 // Package detect turns an inventory and its blast-radius scores into findings.
 //
-// Findings come in two flavours that most tools keep in separate products:
+// Findings come in two flavors that most tools keep in separate products:
 // cost findings (this workload reserves more than it uses, or reserves
 // nothing at all) and exposure findings (this workload can take its
 // neighbors down). capsize keeps them in one list precisely so it can report
@@ -16,6 +16,7 @@ import (
 // Severity orders findings for display and for --fail-on.
 type Severity string
 
+// The severities capsize assigns, ordered by rank.
 const (
 	SeverityInfo     Severity = "info"
 	SeverityWarn     Severity = "warn"

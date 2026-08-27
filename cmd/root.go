@@ -1,3 +1,5 @@
+// Package cmd defines capsize's command-line surface: the flags, the scan
+// pipeline they drive, and the exit codes CI reads.
 package cmd
 
 import (

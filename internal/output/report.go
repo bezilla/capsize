@@ -31,6 +31,7 @@ type Counts struct {
 	Info     int `json:"info"`
 }
 
+// Total is the number of findings across all severities.
 func (c Counts) Total() int { return c.Critical + c.Warn + c.Info }
 
 // Report is the complete result of one scan.

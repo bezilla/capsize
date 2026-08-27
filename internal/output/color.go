@@ -13,7 +13,6 @@ type palette struct{ on bool }
 const (
 	ansiReset  = "\x1b[0m"
 	ansiBold   = "\x1b[1m"
-	ansiDim    = "\x1b[2m"
 	ansiRed    = "\x1b[31m"
 	ansiYellow = "\x1b[33m"
 	ansiBlue   = "\x1b[36m"
@@ -28,7 +27,6 @@ func (p palette) wrap(code, s string) string {
 }
 
 func (p palette) bold(s string) string   { return p.wrap(ansiBold, s) }
-func (p palette) dim(s string) string    { return p.wrap(ansiDim, s) }
 func (p palette) red(s string) string    { return p.wrap(ansiRed, s) }
 func (p palette) yellow(s string) string { return p.wrap(ansiYellow, s) }
 func (p palette) blue(s string) string   { return p.wrap(ansiBlue, s) }

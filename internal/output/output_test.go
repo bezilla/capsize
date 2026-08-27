@@ -284,8 +284,9 @@ func TestJSONUsesAmericanSpelling(t *testing.T) {
 	if !strings.Contains(raw, `"neighbors"`) {
 		t.Error(`the JSON report must expose the score field as "neighbors"`)
 	}
-	if strings.Contains(raw, "neighbour") {
-		t.Error(`"neighbour" must not appear anywhere in the JSON output`)
+	// The British spelling is the thing under test, not a typo.
+	if strings.Contains(raw, "neighbour") { //nolint:misspell // asserting the old spelling is gone
+		t.Error(`the old spelling must not appear anywhere in the JSON output`)
 	}
 
 	// And the value has to survive the rename, not just the key.

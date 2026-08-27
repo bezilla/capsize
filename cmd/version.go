@@ -25,14 +25,16 @@ var versionCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		out := cmd.OutOrStdout()
-		fmt.Fprintln(out, "capsize", resolveVersion())
+		// Writes to stdout: a failure here cannot be reported anywhere
+		// useful, and returning it would change the exit code.
+		_, _ = fmt.Fprintln(out, "capsize", resolveVersion())
 		if commit != "" {
-			fmt.Fprintln(out, "  commit:", commit)
+			_, _ = fmt.Fprintln(out, "  commit:", commit)
 		}
 		if date != "" {
-			fmt.Fprintln(out, "  built: ", date)
+			_, _ = fmt.Fprintln(out, "  built: ", date)
 		}
-		fmt.Fprintf(out, "  go:     %s %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+		_, _ = fmt.Fprintf(out, "  go:     %s %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 	},
 }
 

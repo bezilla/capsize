@@ -310,18 +310,18 @@ func namespaceNames(ctx context.Context, r Reader, scope string, ws []*model.Wor
 		return []string{scope}, nil
 	}
 	var warnings []string
-	if nss, err := r.Namespaces(ctx); err == nil {
+	nss, err := r.Namespaces(ctx)
+	if err == nil {
 		out := make([]string, 0, len(nss))
 		for i := range nss {
 			out = append(out, nss[i].Name)
 		}
 		sort.Strings(out)
 		return out, nil
-	} else {
-		warnings = append(warnings, fmt.Sprintf(
-			"cannot list namespaces (%v) - guardrail checks cover only namespaces "+
-				"that already contain a visible workload", rootCause(err)))
 	}
+	warnings = append(warnings, fmt.Sprintf(
+		"cannot list namespaces (%v) - guardrail checks cover only namespaces "+
+			"that already contain a visible workload", rootCause(err)))
 	seen := map[string]bool{}
 	var out []string
 	for _, w := range ws {

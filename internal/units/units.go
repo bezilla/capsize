@@ -8,6 +8,7 @@ import (
 	"strconv"
 )
 
+// Binary SI byte multipliers, as Kubernetes quantities use them.
 const (
 	Ki = int64(1) << 10
 	Mi = int64(1) << 20

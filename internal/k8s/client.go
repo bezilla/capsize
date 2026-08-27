@@ -98,17 +98,12 @@ func Connect(kubeconfig, kubecontext string) (*Client, error) {
 	return &Client{core: core, metrics: metrics, DefaultNamespace: ns, ContextName: name}, nil
 }
 
-// newFromInterfaces is the seam used by tests to drive the accessors against
-// a fake clientset. It is unexported on purpose.
-func newFromInterfaces(core kubernetes.Interface, metrics metricsclient.Interface) *Client {
-	return &Client{core: core, metrics: metrics, DefaultNamespace: metav1.NamespaceDefault}
-}
-
 // --- read accessors -------------------------------------------------------
 //
 // Every method below is a LIST or a GET. Adding anything else here is what
 // internal/guard exists to prevent.
 
+// Nodes lists every node in the cluster.
 func (c *Client) Nodes(ctx context.Context) ([]corev1.Node, error) {
 	l, err := c.core.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -117,6 +112,7 @@ func (c *Client) Nodes(ctx context.Context) ([]corev1.Node, error) {
 	return l.Items, nil
 }
 
+// Namespaces lists every namespace the caller can read.
 func (c *Client) Namespaces(ctx context.Context) ([]corev1.Namespace, error) {
 	l, err := c.core.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -134,6 +130,7 @@ func (c *Client) Pods(ctx context.Context, ns string) ([]corev1.Pod, error) {
 	return l.Items, nil
 }
 
+// Deployments lists deployments in ns, or cluster-wide when ns is "".
 func (c *Client) Deployments(ctx context.Context, ns string) ([]appsv1.Deployment, error) {
 	l, err := c.core.AppsV1().Deployments(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -142,6 +139,7 @@ func (c *Client) Deployments(ctx context.Context, ns string) ([]appsv1.Deploymen
 	return l.Items, nil
 }
 
+// StatefulSets lists statefulsets in ns, or cluster-wide when ns is "".
 func (c *Client) StatefulSets(ctx context.Context, ns string) ([]appsv1.StatefulSet, error) {
 	l, err := c.core.AppsV1().StatefulSets(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -150,6 +148,7 @@ func (c *Client) StatefulSets(ctx context.Context, ns string) ([]appsv1.Stateful
 	return l.Items, nil
 }
 
+// DaemonSets lists daemonsets in ns, or cluster-wide when ns is "".
 func (c *Client) DaemonSets(ctx context.Context, ns string) ([]appsv1.DaemonSet, error) {
 	l, err := c.core.AppsV1().DaemonSets(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -158,6 +157,8 @@ func (c *Client) DaemonSets(ctx context.Context, ns string) ([]appsv1.DaemonSet,
 	return l.Items, nil
 }
 
+// ReplicaSets lists replicasets in ns, or cluster-wide when ns is "".
+// capsize reads them only to resolve Pod -> ReplicaSet -> Deployment.
 func (c *Client) ReplicaSets(ctx context.Context, ns string) ([]appsv1.ReplicaSet, error) {
 	l, err := c.core.AppsV1().ReplicaSets(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -166,6 +167,8 @@ func (c *Client) ReplicaSets(ctx context.Context, ns string) ([]appsv1.ReplicaSe
 	return l.Items, nil
 }
 
+// Jobs lists jobs in ns, or cluster-wide when ns is "".
+// capsize reads them only to resolve Pod -> Job -> CronJob.
 func (c *Client) Jobs(ctx context.Context, ns string) ([]batchv1.Job, error) {
 	l, err := c.core.BatchV1().Jobs(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -174,6 +177,7 @@ func (c *Client) Jobs(ctx context.Context, ns string) ([]batchv1.Job, error) {
 	return l.Items, nil
 }
 
+// CronJobs lists cronjobs in ns, or cluster-wide when ns is "".
 func (c *Client) CronJobs(ctx context.Context, ns string) ([]batchv1.CronJob, error) {
 	l, err := c.core.BatchV1().CronJobs(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -182,6 +186,7 @@ func (c *Client) CronJobs(ctx context.Context, ns string) ([]batchv1.CronJob, er
 	return l.Items, nil
 }
 
+// LimitRanges lists the LimitRanges governing ns.
 func (c *Client) LimitRanges(ctx context.Context, ns string) ([]corev1.LimitRange, error) {
 	l, err := c.core.CoreV1().LimitRanges(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -190,6 +195,7 @@ func (c *Client) LimitRanges(ctx context.Context, ns string) ([]corev1.LimitRang
 	return l.Items, nil
 }
 
+// ResourceQuotas lists the ResourceQuotas governing ns.
 func (c *Client) ResourceQuotas(ctx context.Context, ns string) ([]corev1.ResourceQuota, error) {
 	l, err := c.core.CoreV1().ResourceQuotas(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {

@@ -8,7 +8,7 @@
 //  2. internal/k8s wraps the HTTP transport so that any request other than
 //     GET, HEAD or OPTIONS fails at the socket.
 //  3. This package's tests parse every .go file in the module and fail the
-//     build if a write-shaped call, or an unauthorised client-go import,
+//     build if a write-shaped call, or an unauthorized client-go import,
 //     appears anywhere in the tree.
 //
 // Point 3 is what keeps points 1 and 2 from rotting. If you are reading this
