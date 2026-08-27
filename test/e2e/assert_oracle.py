@@ -69,6 +69,10 @@ def main() -> int:
         return report_failures()
 
     print("\n=== 1. false-positive control: prod/good-api has zero findings ===")
+    # good-api declares correct requests and limits on both resources and
+    # sits at 1.3x memory usage, so nothing should fire. A CAP109 here almost
+    # always means the scan ran before the ballast dd finished and CPU fell
+    # back to idle; the workflow's steady-state wait exists to prevent that.
     ga = findings.get("prod/good-api", [])
     check(len(ga) == 0, "prod/good-api finding count is 0",
           f"got {len(ga)}: {[f['rule'] for f in ga]}")

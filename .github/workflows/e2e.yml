@@ -20,7 +20,7 @@ jobs:
   e2e:
     name: fixture oracle
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -72,26 +72,42 @@ jobs:
             kubectl wait --for=condition=Available deploy --all -n "$ns" --timeout=300s
           done
 
-      - name: wait for ballast and a metrics scrape
+      - name: wait for the fixture to reach steady state
         run: |
-          # Each container dd's a fixed block into a tmpfs emptyDir, and
-          # metrics-server needs a scrape cycle after that to report it. The
-          # largest is limits-only at 768Mi, so gate on that one specifically:
-          # a scan taken mid-allocation would see a workload as over-provisioned
-          # that is not.
+          # The fixture's design is "allocate a fixed ballast, then sleep", and
+          # it has not reached that state until two things are true: memory is
+          # up, and CPU has fallen back to idle.
+          #
+          # Both matter. Scanning mid-allocation sees a workload as
+          # over-provisioned on memory that is not. Scanning while the dd is
+          # still burning CPU makes CAP109 fire on prod/good-api, which
+          # requests 100m and uses none once settled - and prod/good-api is
+          # the false-positive control, so that turns the most important
+          # assertion in this job into a coin flip.
+          #
+          # Requires two consecutive clean polls so a single quiet scrape
+          # during the allocation does not read as settled.
+          stable=0
           for i in $(seq 1 60); do
-            mem=$(kubectl top pod -n sandbox -l app=limits-only --no-headers 2>/dev/null \
-                  | awk '{gsub(/Mi/,"",$3); print $3+0}')
-            zero=$(kubectl top pods -A --no-headers 2>/dev/null \
-                   | awk '$1 ~ /^(prod|sandbox|batch)$/ && $4 == "0Mi"' | wc -l)
-            echo "attempt $i: limits-only=${mem:-none}Mi, pods still reporting 0Mi: $zero"
-            if [ -n "$mem" ] && [ "$mem" -ge 700 ] && [ "$zero" -eq 0 ]; then
-              echo "ballast settled"
-              break
+            top=$(kubectl top pods -A --no-headers 2>/dev/null || true)
+            mem=$(echo "$top" | awk '$1=="sandbox" && $2 ~ /^limits-only-/ {gsub(/Mi/,"",$4); print $4+0}')
+            zero_mem=$(echo "$top" | awk '$1 ~ /^(prod|sandbox|batch)$/ && $4 == "0Mi"' | wc -l)
+            busy_cpu=$(echo "$top" | awk '$1 ~ /^(prod|sandbox|batch)$/ && $3 != "0m"' | wc -l)
+            echo "attempt $i: limits-only=${mem:-none}Mi  pods at 0Mi=$zero_mem  pods burning cpu=$busy_cpu  clean polls=$stable"
+            if [ -n "$mem" ] && [ "$mem" -ge 700 ] && [ "$zero_mem" -eq 0 ] && [ "$busy_cpu" -eq 0 ]; then
+              stable=$((stable + 1))
+              if [ "$stable" -ge 2 ]; then break; fi
+            else
+              stable=0
             fi
             sleep 10
           done
           kubectl top pods -A
+          if [ "$stable" -lt 2 ]; then
+            echo "fixture never reached steady state: $stable consecutive clean polls, wanted 2"
+            exit 1
+          fi
+          echo "steady state reached after $i polls"
 
       - name: scan
         run: ./capsize -A --json > report.json
