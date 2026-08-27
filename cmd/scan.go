@@ -8,12 +8,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/pjbezilla/capsize/internal/collect"
-	"github.com/pjbezilla/capsize/internal/detect"
-	"github.com/pjbezilla/capsize/internal/k8s"
-	"github.com/pjbezilla/capsize/internal/output"
-	"github.com/pjbezilla/capsize/internal/risk"
-	"github.com/pjbezilla/capsize/internal/units"
+	"github.com/bezilla/capsize/internal/collect"
+	"github.com/bezilla/capsize/internal/detect"
+	"github.com/bezilla/capsize/internal/k8s"
+	"github.com/bezilla/capsize/internal/output"
+	"github.com/bezilla/capsize/internal/risk"
+	"github.com/bezilla/capsize/internal/units"
 )
 
 // runScan is the whole pipeline: connect, collect, score, detect, render, gate.

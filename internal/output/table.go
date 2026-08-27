@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pjbezilla/capsize/internal/detect"
-	"github.com/pjbezilla/capsize/internal/risk"
-	"github.com/pjbezilla/capsize/internal/units"
+	"github.com/bezilla/capsize/internal/detect"
+	"github.com/bezilla/capsize/internal/risk"
+	"github.com/bezilla/capsize/internal/units"
 )
 
 // TableOptions controls human rendering.

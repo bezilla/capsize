@@ -5,7 +5,7 @@
 // and cmd/readonly_test.go for the test that keeps it that way.
 package main
 
-import "github.com/pjbezilla/capsize/cmd"
+import "github.com/bezilla/capsize/cmd"
 
 func main() {
 	cmd.Execute()

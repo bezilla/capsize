@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pjbezilla/capsize/internal/detect"
-	"github.com/pjbezilla/capsize/internal/model"
-	"github.com/pjbezilla/capsize/internal/output"
-	"github.com/pjbezilla/capsize/internal/units"
+	"github.com/bezilla/capsize/internal/detect"
+	"github.com/bezilla/capsize/internal/model"
+	"github.com/bezilla/capsize/internal/output"
+	"github.com/bezilla/capsize/internal/units"
 )
 
 func defaults() *Options {

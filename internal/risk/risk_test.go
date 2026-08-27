@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/pjbezilla/capsize/internal/model"
+	"github.com/bezilla/capsize/internal/model"
 )
 
 const (

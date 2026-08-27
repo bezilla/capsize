@@ -6,9 +6,9 @@ package output
 import (
 	"sort"
 
-	"github.com/pjbezilla/capsize/internal/detect"
-	"github.com/pjbezilla/capsize/internal/model"
-	"github.com/pjbezilla/capsize/internal/risk"
+	"github.com/bezilla/capsize/internal/detect"
+	"github.com/bezilla/capsize/internal/model"
+	"github.com/bezilla/capsize/internal/risk"
 )
 
 // Row is one workload as it appears in the blast-radius table.

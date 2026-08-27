@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsapi "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 
-	"github.com/pjbezilla/capsize/internal/model"
+	"github.com/bezilla/capsize/internal/model"
 )
 
 // Reader is the read-only slice of the cluster collect needs. *k8s.Client

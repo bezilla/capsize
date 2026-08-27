@@ -3,9 +3,9 @@ package detect
 import (
 	"fmt"
 
-	"github.com/pjbezilla/capsize/internal/model"
-	"github.com/pjbezilla/capsize/internal/risk"
-	"github.com/pjbezilla/capsize/internal/units"
+	"github.com/bezilla/capsize/internal/model"
+	"github.com/bezilla/capsize/internal/risk"
+	"github.com/bezilla/capsize/internal/units"
 )
 
 // Options tunes the thresholds that are judgement calls rather than facts.

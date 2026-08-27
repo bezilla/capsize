@@ -1,4 +1,4 @@
-module github.com/pjbezilla/capsize
+module github.com/bezilla/capsize
 
 go 1.26.6
 

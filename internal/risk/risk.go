@@ -25,7 +25,7 @@ package risk
 import (
 	"math"
 
-	"github.com/pjbezilla/capsize/internal/model"
+	"github.com/bezilla/capsize/internal/model"
 )
 
 // SpotFactor is the multiplier applied on interruptible capacity: the node can

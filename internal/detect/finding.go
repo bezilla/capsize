@@ -10,7 +10,7 @@ package detect
 import (
 	"sort"
 
-	"github.com/pjbezilla/capsize/internal/model"
+	"github.com/bezilla/capsize/internal/model"
 )
 
 // Severity orders findings for display and for --fail-on.
