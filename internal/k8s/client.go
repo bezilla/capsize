@@ -158,6 +158,22 @@ func (c *Client) DaemonSets(ctx context.Context, ns string) ([]appsv1.DaemonSet,
 	return l.Items, nil
 }
 
+func (c *Client) ReplicaSets(ctx context.Context, ns string) ([]appsv1.ReplicaSet, error) {
+	l, err := c.core.AppsV1().ReplicaSets(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing replicasets: %w", err)
+	}
+	return l.Items, nil
+}
+
+func (c *Client) Jobs(ctx context.Context, ns string) ([]batchv1.Job, error) {
+	l, err := c.core.BatchV1().Jobs(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing jobs: %w", err)
+	}
+	return l.Items, nil
+}
+
 func (c *Client) CronJobs(ctx context.Context, ns string) ([]batchv1.CronJob, error) {
 	l, err := c.core.BatchV1().CronJobs(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
