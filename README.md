@@ -32,25 +32,6 @@ Cost optimization and blast-radius containment can pull in **opposite directions
 
 ## Install
 
-### Download a binary
-
-No Go toolchain required. Pick your platform from the
-[latest release](https://github.com/bezilla/capsize/releases/latest):
-
-```bash
-# macOS (Apple silicon) — swap darwin_arm64 for darwin_amd64,
-# linux_amd64 or linux_arm64 as needed
-VERSION=v0.1.0
-curl -sSL "https://github.com/bezilla/capsize/releases/download/${VERSION}/capsize_${VERSION#v}_darwin_arm64.tar.gz" \
-  | tar xz capsize
-sudo mv capsize /usr/local/bin/
-capsize version
-```
-
-Every release ships `checksums.txt` if you want to verify the archive first.
-
-### With Go
-
 ```bash
 go install github.com/bezilla/capsize@latest
 ```
@@ -140,13 +121,13 @@ SUMMARY
 
 ```mermaid
 flowchart TD
-    A["<b>overprovisioned-cache</b><br/>requests 512Mi · uses 40Mi · <b>no limit</b>"]
-    A --> B["every cost tool sees this<br/>and says: shrink the request"]
-    B --> C["scheduler now packs more<br/>neighbours onto the node"]
-    B --> D["ceiling is unchanged —<br/>nothing bounds it but the node"]
-    C --> E["<b>blast radius 12.2 → 122.6</b>"]
+    A["overprovisioned-cache<br>requests 512Mi, uses 40Mi, no limit"]
+    A --> B["every cost tool sees this<br>and says: shrink the request"]
+    B --> C["scheduler now packs more<br>neighbours onto the node"]
+    B --> D["ceiling is unchanged:<br>nothing bounds it but the node"]
+    C --> E["blast radius 12.2 to 122.6"]
     D --> E
-    E --> F["<b>Do this first: set a memory limit.</b><br/>Then the request is safe to cut."]
+    E --> F["Do this first: set a memory limit.<br>Then the request is safe to cut."]
 
     style A fill:#1f2937,stroke:#4b5563,color:#f9fafb
     style B fill:#374151,stroke:#4b5563,color:#f9fafb
