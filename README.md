@@ -46,6 +46,11 @@ capsize -A --fail-on warn    # exit 2 in CI if anything is warn or worse
 
 Scanning one namespace of the [test fixture](#testing) — a `kind` cluster built to be broken in specific ways:
 
+![capsize scanning the test fixture](docs/scan.svg)
+
+<details>
+<summary><b>The same output as text</b> — searchable, copyable, screen-reader readable</summary>
+
 ```
 $ capsize -n sandbox
 capsize  context kind-capsize  scope namespace sandbox
@@ -103,6 +108,8 @@ SUMMARY
   highest blast radius: 128.9 (sandbox/orphan-job)
   * ceiling is the node's allocatable memory because no container limit bounds it
 ```
+
+</details>
 
 `orphan-job` outranks `overprovisioned-cache` ten to one, and that is the point. It declares nothing at all, so it is scored against `--request-floor` on the tightest node in the cluster — the scheduler treats it as free, packs it anywhere, and nothing caps what it can take. The workload that *looks* wasteful is the third-riskiest thing here.
 
