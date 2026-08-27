@@ -32,6 +32,25 @@ Cost optimization and blast-radius containment can pull in **opposite directions
 
 ## Install
 
+### Download a binary
+
+No Go toolchain required. Pick your platform from the
+[latest release](https://github.com/bezilla/capsize/releases/latest):
+
+```bash
+# macOS (Apple silicon) — swap darwin_arm64 for darwin_amd64,
+# linux_amd64 or linux_arm64 as needed
+VERSION=v0.1.0
+curl -sSL "https://github.com/bezilla/capsize/releases/download/${VERSION}/capsize_${VERSION#v}_darwin_arm64.tar.gz" \
+  | tar xz capsize
+sudo mv capsize /usr/local/bin/
+capsize version
+```
+
+Every release ships `checksums.txt` if you want to verify the archive first.
+
+### With Go
+
 ```bash
 go install github.com/bezilla/capsize@latest
 ```

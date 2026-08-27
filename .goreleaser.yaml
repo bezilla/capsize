@@ -1,0 +1,82 @@
+# goreleaser config for capsize.
+#
+# Four binaries: darwin and linux, amd64 and arm64. The point is that trying
+# capsize should not require a Go toolchain.
+#
+# Local check before tagging anything:
+#   goreleaser release --snapshot --clean
+#   ./dist/capsize_darwin_arm64*/capsize version
+version: 2
+
+project_name: capsize
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: capsize
+    main: .
+    binary: capsize
+    env:
+      # Static binaries: capsize talks to an API server over HTTP and needs
+      # nothing from libc, so a download should run anywhere.
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    # Reproducible builds: stamp the commit time rather than the build time.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/bezilla/capsize/cmd.version={{ .Version }}
+      - -X github.com/bezilla/capsize/cmd.commit={{ .FullCommit }}
+      - -X github.com/bezilla/capsize/cmd.date={{ .Date }}
+
+archives:
+  - id: capsize
+    ids:
+      - capsize
+    name_template: "capsize_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    files:
+      - README.md
+      - DESIGN.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: bezilla
+    name: capsize
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Install
+
+    Download the archive for your platform below, extract it, and put
+    `capsize` on your `PATH`. Verify against `checksums.txt` if you like.
+
+    capsize is read-only: it uses your existing kubeconfig and issues GET and
+    LIST only.
