@@ -49,6 +49,20 @@ jobs:
         with:
           version: v2.13.1   # pinned so a lint release cannot redden a green branch
 
+  vuln:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Reports only vulnerabilities on a call path capsize actually reaches,
+      # so a CVE in an unused corner of client-go does not stop the world.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
   readonly:
     name: read-only guard
     runs-on: ubuntu-latest
