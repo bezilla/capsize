@@ -1,0 +1,89 @@
+# THREE unbounded tenants sharing ONE spot node. Should rank #1 on blast
+# radius. Each uses 48Mi of its 64Mi request (1.3x) so the ONLY finding is
+# the missing limit — the ranking must come from tenancy and spot, not waste.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spot-tenant-a
+  namespace: batch
+  labels: { capsize.test/expect: "max-blast-radius" }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: spot-tenant-a } }
+  template:
+    metadata:
+      labels: { app: spot-tenant-a }
+    spec:
+      nodeSelector: { capsize.test/pool: spot }
+      volumes:
+        - name: ballast
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
+      containers:
+        - name: app
+          image: busybox:1.36
+          # allocate 48Mi of real, resident memory so metrics-server
+          # reports believable usage. tmpfs pages count against the container cgroup.
+          command: ["sh","-c","dd if=/dev/zero of=/ballast/f bs=1M count=48 2>/dev/null; sleep infinity"]
+          volumeMounts:
+            - { name: ballast, mountPath: /ballast }
+          resources:
+            requests: { memory: 64Mi }
+            # limits: intentionally absent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spot-tenant-b
+  namespace: batch
+  labels: { capsize.test/expect: "max-blast-radius" }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: spot-tenant-b } }
+  template:
+    metadata:
+      labels: { app: spot-tenant-b }
+    spec:
+      nodeSelector: { capsize.test/pool: spot }
+      volumes:
+        - name: ballast
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
+      containers:
+        - name: app
+          image: busybox:1.36
+          # allocate 48Mi of real, resident memory so metrics-server
+          # reports believable usage. tmpfs pages count against the container cgroup.
+          command: ["sh","-c","dd if=/dev/zero of=/ballast/f bs=1M count=48 2>/dev/null; sleep infinity"]
+          volumeMounts:
+            - { name: ballast, mountPath: /ballast }
+          resources:
+            requests: { memory: 64Mi }
+            # limits: intentionally absent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spot-tenant-c
+  namespace: batch
+  labels: { capsize.test/expect: "max-blast-radius" }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: spot-tenant-c } }
+  template:
+    metadata:
+      labels: { app: spot-tenant-c }
+    spec:
+      nodeSelector: { capsize.test/pool: spot }
+      volumes:
+        - name: ballast
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
+      containers:
+        - name: app
+          image: busybox:1.36
+          # allocate 48Mi of real, resident memory so metrics-server
+          # reports believable usage. tmpfs pages count against the container cgroup.
+          command: ["sh","-c","dd if=/dev/zero of=/ballast/f bs=1M count=48 2>/dev/null; sleep infinity"]
+          volumeMounts:
+            - { name: ballast, mountPath: /ballast }
+          resources:
+            requests: { memory: 64Mi }
+            # limits: intentionally absent

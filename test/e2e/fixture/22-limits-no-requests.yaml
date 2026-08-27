@@ -1,0 +1,32 @@
+# Limits, no requests. Kubernetes DEFAULTS requests to the limits, so the
+# effective pod is Guaranteed — not BestEffort. capsize must resolve that
+# defaulting before scoring; reading the template verbatim is a bug.
+# Uses 768Mi of its effective 1Gi request (1.3x) so no usage rule fires.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: limits-only
+  namespace: sandbox
+  labels: { capsize.test/expect: "limits-without-requests" }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: limits-only } }
+  template:
+    metadata:
+      labels: { app: limits-only }
+    spec:
+      nodeSelector: { capsize.test/pool: ondemand-large }
+      volumes:
+        - name: ballast
+          emptyDir: { medium: Memory, sizeLimit: 784Mi }
+      containers:
+        - name: app
+          image: busybox:1.36
+          # allocate 768Mi of real, resident memory so metrics-server
+          # reports believable usage. tmpfs pages count against the container cgroup.
+          command: ["sh","-c","dd if=/dev/zero of=/ballast/f bs=1M count=768 2>/dev/null; sleep infinity"]
+          volumeMounts:
+            - { name: ballast, mountPath: /ballast }
+          resources:
+            # requests: intentionally absent
+            limits:   { memory: 1Gi, cpu: "1" }

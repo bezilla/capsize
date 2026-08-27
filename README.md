@@ -191,6 +191,8 @@ Unit tests cover the formula, the detectors and the read-only guard. They were a
 
 So there is also a **[fixture](https://github.com/bezilla/capsize-fixture): a four-node `kind` cluster that is broken on purpose**, with differentiated node capacity, a spot pool, real memory consumers, and two false-positive controls that must produce **zero** findings. Its README carries an expected-findings table used as an oracle.
 
+The fixture manifests are vendored into `test/e2e/` and run on every push: CI spins the cluster, installs metrics-server, and asserts the oracle on values parsed from `--json` rather than on an exit code.
+
 That fixture caught a genuine defect the unit tests could not: capsize read container resources straight from the PodTemplateSpec and never applied Kubernetes' own defaulting, so a workload declaring limits and omitting requests was scored as if it had no reservation at all. It was ranked second-riskiest of sixteen. It belonged last. The unit tests passed because they asserted on a state a real cluster never produces.
 
 ## Roadmap

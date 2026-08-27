@@ -1,0 +1,31 @@
+# CONTROL. Correct requests AND limits, in a governed namespace, and it
+# actually USES 96Mi of its 128Mi request (1.3x) so no usage-based rule fires.
+# capsize MUST NOT flag this. Any finding here is a false positive.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: good-api
+  namespace: prod
+  labels: { capsize.test/expect: "clean" }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: good-api } }
+  template:
+    metadata:
+      labels: { app: good-api }
+    spec:
+      nodeSelector: { capsize.test/pool: ondemand-large }
+      volumes:
+        - name: ballast
+          emptyDir: { medium: Memory, sizeLimit: 112Mi }
+      containers:
+        - name: app
+          image: busybox:1.36
+          # allocate 96Mi of real, resident memory so metrics-server
+          # reports believable usage. tmpfs pages count against the container cgroup.
+          command: ["sh","-c","dd if=/dev/zero of=/ballast/f bs=1M count=96 2>/dev/null; sleep infinity"]
+          volumeMounts:
+            - { name: ballast, mountPath: /ballast }
+          resources:
+            requests: { memory: 128Mi, cpu: "100m" }
+            limits:   { memory: 256Mi, cpu: "500m" }

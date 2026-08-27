@@ -1,0 +1,38 @@
+# ⭐⭐ THE THESIS LIVES HERE.
+#
+# Requests 512Mi. Actually uses 40Mi. Every incumbent cost tool finds this
+# and says "shrink your request, you're wasting 464Mi." They are right.
+#
+# It also has NO LIMITS. Shrink the request and the scheduler packs more
+# neighbours onto its node while this workload stays free to consume the
+# entire node ceiling. The savings are real AND the outage gets more likely.
+#
+# capsize must emit BOTH halves. Nothing else in the category emits the second.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: overprovisioned-cache
+  namespace: sandbox
+  labels: { capsize.test/expect: "overprovisioned-and-missing-limits" }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: overprovisioned-cache } }
+  template:
+    metadata:
+      labels: { app: overprovisioned-cache }
+    spec:
+      nodeSelector: { capsize.test/pool: ondemand-large }
+      volumes:
+        - name: ballast
+          emptyDir: { medium: Memory, sizeLimit: 56Mi }
+      containers:
+        - name: app
+          image: busybox:1.36
+          # allocate 40Mi of real, resident memory so metrics-server
+          # reports believable usage. tmpfs pages count against the container cgroup.
+          command: ["sh","-c","dd if=/dev/zero of=/ballast/f bs=1M count=40 2>/dev/null; sleep infinity"]
+          volumeMounts:
+            - { name: ballast, mountPath: /ballast }
+          resources:
+            requests: { memory: 512Mi, cpu: "1" }
+            # limits: intentionally absent

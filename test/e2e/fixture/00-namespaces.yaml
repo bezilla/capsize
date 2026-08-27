@@ -1,0 +1,42 @@
+# prod  — governed: has LimitRange AND ResourceQuota. Namespace checks PASS.
+# sandbox — ungoverned: no LimitRange, no ResourceQuota. Should be FLAGGED.
+# batch   — ungoverned AND pinned to spot. Should be FLAGGED, higher severity.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels: { capsize.test/governed: "true" }
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: prod
+spec:
+  limits:
+    - type: Container
+      default:        { memory: 512Mi, cpu: "500m" }
+      defaultRequest: { memory: 128Mi, cpu: "100m" }
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: prod-quota
+  namespace: prod
+spec:
+  hard:
+    requests.memory: 8Gi
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sandbox
+  labels: { capsize.test/governed: "false" }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: batch
+  labels: { capsize.test/governed: "false" }

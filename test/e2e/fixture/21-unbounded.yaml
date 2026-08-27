@@ -1,0 +1,28 @@
+# Declares NOTHING. Invisible to scheduler packing, unbounded, and in a
+# namespace with no LimitRange to backfill it. BestEffort QoS.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orphan-job
+  namespace: sandbox
+  labels: { capsize.test/expect: "no-requests-no-limits" }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: orphan-job } }
+  template:
+    metadata:
+      labels: { app: orphan-job }
+    spec:
+      nodeSelector: { capsize.test/pool: ondemand-small }
+      volumes:
+        - name: ballast
+          emptyDir: { medium: Memory, sizeLimit: 48Mi }
+      containers:
+        - name: app
+          image: busybox:1.36
+          # allocate 32Mi of real, resident memory so metrics-server
+          # reports believable usage. tmpfs pages count against the container cgroup.
+          command: ["sh","-c","dd if=/dev/zero of=/ballast/f bs=1M count=32 2>/dev/null; sleep infinity"]
+          volumeMounts:
+            - { name: ballast, mountPath: /ballast }
+          # resources: intentionally absent entirely

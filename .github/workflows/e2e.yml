@@ -1,0 +1,112 @@
+name: E2E
+
+# The fixture cluster as an automated gate.
+#
+# Deliberately a separate workflow from CI: spinning kind takes minutes and
+# can flake on a runner, and neither should stand between a push and the fast
+# unit path. If this is red and CI is green, the regression is in behavior
+# against a real API server, which is exactly the class of bug that a green
+# unit suite missed once already.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: fixture oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build capsize
+        run: go build -o capsize .
+
+      - name: create the fixture cluster
+        uses: helm/kind-action@v1
+        with:
+          config: test/e2e/fixture/kind-cluster.yaml
+          cluster_name: capsize
+          wait: 120s
+
+      - name: show node capacity
+        run: |
+          kubectl get nodes -o custom-columns=\
+          'NAME:.metadata.name,POOL:.metadata.labels.capsize\.test/pool,ALLOC:.status.allocatable.memory'
+
+      - name: install metrics-server
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          # kind's kubelet serving certificates are self-signed.
+          kubectl patch deploy metrics-server -n kube-system --type=json \
+            -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          # Pin it to the control plane. The fixture workloads are all pinned by
+          # nodeSelector, so metrics-server is the only pod free to land on a
+          # worker - and where it lands changes that node's neighbor count and
+          # therefore the risk scores this job asserts on.
+          kubectl patch deploy metrics-server -n kube-system --type=strategic -p '{
+            "spec": {"template": {"spec": {
+              "nodeSelector": {"node-role.kubernetes.io/control-plane": ""},
+              "tolerations": [{"key": "node-role.kubernetes.io/control-plane", "effect": "NoSchedule"}]
+            }}}
+          }'
+          kubectl wait --for=condition=Available deploy/metrics-server -n kube-system --timeout=180s
+
+      - name: apply the fixture workloads
+        run: |
+          kubectl apply -f test/e2e/fixture/00-namespaces.yaml
+          for f in test/e2e/fixture/1*.yaml test/e2e/fixture/2*.yaml; do
+            kubectl apply -f "$f"
+          done
+          for ns in prod sandbox batch; do
+            kubectl wait --for=condition=Available deploy --all -n "$ns" --timeout=300s
+          done
+
+      - name: wait for ballast and a metrics scrape
+        run: |
+          # Each container dd's a fixed block into a tmpfs emptyDir, and
+          # metrics-server needs a scrape cycle after that to report it. The
+          # largest is limits-only at 768Mi, so gate on that one specifically:
+          # a scan taken mid-allocation would see a workload as over-provisioned
+          # that is not.
+          for i in $(seq 1 60); do
+            mem=$(kubectl top pod -n sandbox -l app=limits-only --no-headers 2>/dev/null \
+                  | awk '{gsub(/Mi/,"",$3); print $3+0}')
+            zero=$(kubectl top pods -A --no-headers 2>/dev/null \
+                   | awk '$1 ~ /^(prod|sandbox|batch)$/ && $4 == "0Mi"' | wc -l)
+            echo "attempt $i: limits-only=${mem:-none}Mi, pods still reporting 0Mi: $zero"
+            if [ -n "$mem" ] && [ "$mem" -ge 700 ] && [ "$zero" -eq 0 ]; then
+              echo "ballast settled"
+              break
+            fi
+            sleep 10
+          done
+          kubectl top pods -A
+
+      - name: scan
+        run: ./capsize -A --json > report.json
+
+      - name: assert the oracle
+        run: python3 test/e2e/assert_oracle.py report.json
+
+      - name: human-readable report
+        if: always()
+        run: ./capsize -A --no-color || true
+
+      - name: upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: capsize-report
+          path: report.json
+          if-no-files-found: warn

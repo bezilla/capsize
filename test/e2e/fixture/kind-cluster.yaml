@@ -1,0 +1,66 @@
+# capsize test fixture — local kind cluster
+#
+# Four nodes: one control-plane, three workers with different simulated
+# instance types and one spot pool. Allocatable memory is differentiated
+# with system-reserved so blast-radius math has something real to divide by.
+#
+#   kind create cluster --config kind-cluster.yaml --name capsize
+#
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: capsize
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          taints:
+            - key: node-role.kubernetes.io/control-plane
+              effect: NoSchedule
+
+  # ---- worker-sm : small on-demand node, deliberately tight allocatable ----
+  - role: worker
+    labels:
+      node.kubernetes.io/instance-type: m5.large
+      capsize.test/pool: ondemand-small
+      eks.amazonaws.com/capacityType: ON_DEMAND
+      karpenter.sh/capacity-type: on-demand
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            system-reserved: "memory=3Gi,cpu=500m"
+            eviction-hard: "memory.available<200Mi"
+
+  # ---- worker-lg : larger on-demand node ----
+  - role: worker
+    labels:
+      node.kubernetes.io/instance-type: m5.2xlarge
+      capsize.test/pool: ondemand-large
+      eks.amazonaws.com/capacityType: ON_DEMAND
+      karpenter.sh/capacity-type: on-demand
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            system-reserved: "memory=1Gi,cpu=250m"
+            eviction-hard: "memory.available<200Mi"
+
+  # ---- worker-spot : SPOT pool. The node that makes an unbounded workload lethal. ----
+  - role: worker
+    labels:
+      node.kubernetes.io/instance-type: m5.2xlarge
+      capsize.test/pool: spot
+      eks.amazonaws.com/capacityType: SPOT
+      karpenter.sh/capacity-type: spot
+      node.kubernetes.io/lifecycle: spot
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            system-reserved: "memory=1Gi,cpu=250m"
+            eviction-hard: "memory.available<200Mi"
