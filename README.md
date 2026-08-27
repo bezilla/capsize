@@ -123,7 +123,7 @@ SUMMARY
 flowchart TD
     A["overprovisioned-cache<br>requests 512Mi, uses 40Mi, no limit"]
     A --> B["every cost tool sees this<br>and says: shrink the request"]
-    B --> C["scheduler now packs more<br>neighbours onto the node"]
+    B --> C["scheduler now packs more<br>neighbors onto the node"]
     B --> D["ceiling is unchanged:<br>nothing bounds it but the node"]
     C --> E["blast radius 12.2 to 122.6"]
     D --> E
@@ -135,7 +135,7 @@ flowchart TD
     style F fill:#14532d,stroke:#16a34a,color:#f0fdf4
 ```
 
-The savings are real — 461Mi per pod. Acting on them alone makes an outage more likely, because with no limit set the *request* is the only number holding that container below the node ceiling. Cut it and you have both freed the scheduler to pack more neighbours in **and** left the workload free to take everything.
+The savings are real — 461Mi per pod. Acting on them alone makes an outage more likely, because with no limit set the *request* is the only number holding that container below the node ceiling. Cut it and you have both freed the scheduler to pack more neighbors in **and** left the workload free to take everything.
 
 Neither half is wrong. They are answers to different questions, and shipping only the first one is how you get paged.
 
@@ -144,12 +144,12 @@ Neither half is wrong. They are answers to different questions, and shipping onl
 ```
 ceiling  = min(node allocatable memory, container memory limit)
 ratio    = ceiling / memory request
-risk     = ratio x log2(1 + neighbours) x spot_factor        (spot_factor = 1.5)
+risk     = ratio x log2(1 + neighbors) x spot_factor        (spot_factor = 1.5)
 ```
 
 **The ceiling term is the whole argument.** With no limit set, a container's ceiling is the entire node — so the *request* becomes the only number holding it back, and shrinking the request raises the ceiling ratio directly. Set a limit and the ceiling collapses to that limit. The metric rewards bounding a workload without needing a special case for it.
 
-`log2` on neighbours because the second tenant on a node matters far more than the twelfth. `spot_factor` because preemption changes node packing, and changed packing is what turned a latent bug into an outage.
+`log2` on neighbors because the second tenant on a node matters far more than the twelfth. `spot_factor` because preemption changes node packing, and changed packing is what turned a latent bug into an outage.
 
 The formula is written down exactly once, in `internal/risk`. Live scoring and what-if projection both call it, so **a recommendation can never be priced with different arithmetic than the finding that prompted it.**
 
@@ -177,10 +177,10 @@ Layer three was verified by breaking it on purpose: a `.Update()` call was added
 
 Written down because you should know them before you trust a number.
 
-- **Neighbours means "workloads with pods currently on the node," not "workloads schedulable on it."** Taints, nodeSelectors and anti-affinity make those differ. This is the one term in the formula that is an approximation rather than a fact, and it multiplies everything else.
+- **Neighbors means "workloads with pods currently on the node," not "workloads schedulable on it."** Taints, nodeSelectors and anti-affinity make those differ. This is the one term in the formula that is an approximation rather than a fact, and it multiplies everything else.
 - **Usage comes from metrics-server, which serves an instant, not a window.** capsize takes the *busiest* pod rather than the mean, because sizing off the quietest replica is how a rightsizing becomes a page. It is still one sample. A `--since` window is on the roadmap.
 - **A workload spread across nodes is scored against its worst node**, not the mean.
-- **Tenancy is read cluster-wide even for `-n` scans** — a kube-system neighbour OOMs you just as dead. If that read is denied by RBAC, the neighbour count is reported as a stated lower bound rather than silently undercounting.
+- **Tenancy is read cluster-wide even for `-n` scans** — a kube-system neighbor OOMs you just as dead. If that read is denied by RBAC, the neighbor count is reported as a stated lower bound rather than silently undercounting.
 - **A workload with no memory request is scored against `--request-floor`** (10Mi default) so its ratio stays finite, and printed as `~10Mi` so you can see it was assumed.
 - **No request recommendation is made below `--min-request`** (32Mi default), and above `--idle-ratio` (50x) capsize declines to prescribe a number at all — an instant sample of an idle workload is not a sizing basis, and "shrink to 1Mi" is arithmetic, not advice.
 - **Cost is not yet priced in dollars.** Phase 2 joins node instance types against the public AWS pricing API.
@@ -196,7 +196,7 @@ That fixture caught a genuine defect the unit tests could not: capsize read cont
 ## Roadmap
 
 - **Phase 1 — shipped.** Guardrails, blast radius, contradictions, JSON, CI gate.
-- **Phase 1.5.** Scheduling-aware neighbours · `--explain <workload>` to print the formula with this workload's numbers substituted, because a score is only useful if it can be argued with · `--since` window over metrics · `--baseline` diff so CI fails on newly introduced risk rather than pre-existing debt.
+- **Phase 1.5.** Scheduling-aware neighbors · `--explain <workload>` to print the formula with this workload's numbers substituted, because a score is only useful if it can be argued with · `--since` window over metrics · `--baseline` diff so CI fails on newly introduced risk rather than pre-existing debt.
 - **Phase 2 — cost.** Public AWS pricing join. Waste priced, exposure priced, and every cost recommendation that raises blast radius called out in dollars.
 
 ## License

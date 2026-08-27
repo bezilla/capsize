@@ -26,7 +26,7 @@ func cpuLim(m int64) ctrOpt { return func(c *model.Container) { c.HasCPULimit, c
 
 // container builds a container the way collect delivers one: with Kubernetes'
 // own request-defaulting already applied. Building a raw model.Container here
-// would let a test assert behaviour that cannot occur against a real cluster.
+// would let a test assert behavior that cannot occur against a real cluster.
 func container(name string, opts ...ctrOpt) model.Container {
 	c := model.Container{Name: name}
 	for _, o := range opts {
@@ -35,8 +35,8 @@ func container(name string, opts ...ctrOpt) model.Container {
 	return c.Effective()
 }
 
-// scene builds a one-node, one-workload cluster with the given neighbours.
-func scene(w *model.Workload, allocGi int64, neighbours int, spot bool) (*model.Inventory, map[model.Ref]risk.Score) {
+// scene builds a one-node, one-workload cluster with the given neighbors.
+func scene(w *model.Workload, allocGi int64, neighbors int, spot bool) (*model.Inventory, map[model.Ref]risk.Score) {
 	n := &model.Node{
 		Name:           "node-1",
 		AllocatableMem: allocGi * units.Gi,
@@ -44,7 +44,7 @@ func scene(w *model.Workload, allocGi int64, neighbours int, spot bool) (*model.
 		Spot:           spot,
 		Tenants:        map[model.Ref]bool{w.Ref: true},
 	}
-	for i := 0; i < neighbours; i++ {
+	for i := 0; i < neighbors; i++ {
 		n.Tenants[model.Ref{Kind: model.KindDeployment, Namespace: "other", Name: string(rune('a' + i))}] = true
 	}
 	w.Nodes = []string{"node-1"}
@@ -80,7 +80,7 @@ func TestFlagsMissingRequestsAndLimits(t *testing.T) {
 		t.Fatal("a container with no limits must be flagged")
 	}
 	if f.Severity != SeverityCritical {
-		t.Errorf("unbounded next to %d neighbours should be critical, got %s", 3, f.Severity)
+		t.Errorf("unbounded next to %d neighbors should be critical, got %s", 3, f.Severity)
 	}
 	if !strings.Contains(f.Detail, "node-1") {
 		t.Errorf("the detail should name the node whose memory is the ceiling: %q", f.Detail)
@@ -282,7 +282,7 @@ func TestSoleTenantProducesNoContradiction(t *testing.T) {
 
 	fs := Run(inv, scores, Options{})
 	if has(fs, RuleContradiction) != nil {
-		t.Error("a workload alone on its node has no neighbours to endanger")
+		t.Error("a workload alone on its node has no neighbors to endanger")
 	}
 }
 

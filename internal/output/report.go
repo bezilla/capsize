@@ -24,7 +24,7 @@ type Row struct {
 	Contradictions int `json:"contradictions"`
 }
 
-// Counts summarises a findings list.
+// Counts summarizes a findings list.
 type Counts struct {
 	Critical int `json:"critical"`
 	Warn     int `json:"warn"`

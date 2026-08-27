@@ -176,7 +176,7 @@ func TestResolvesPodToDeploymentThroughReplicaSet(t *testing.T) {
 	}
 }
 
-func TestNeighboursExcludeSelfAndCountDistinctWorkloads(t *testing.T) {
+func TestNeighborsExcludeSelfAndCountDistinctWorkloads(t *testing.T) {
 	dsRef := ctrlRef("DaemonSet", "logs")
 	stsRef := ctrlRef("StatefulSet", "db")
 	f := &fakeReader{
@@ -196,8 +196,8 @@ func TestNeighboursExcludeSelfAndCountDistinctWorkloads(t *testing.T) {
 	self := model.Ref{Kind: model.KindStatefulSet, Namespace: "prod", Name: "db"}
 	// Tenants: logs (DaemonSet), db (StatefulSet), loose (Pod) = 3 distinct;
 	// two logs pods must collapse to one.
-	if got := n.Neighbours(self); got != 2 {
-		t.Fatalf("want 2 neighbours of %s, got %d (tenants=%v)", self, got, n.Tenants)
+	if got := n.Neighbors(self); got != 2 {
+		t.Fatalf("want 2 neighbors of %s, got %d (tenants=%v)", self, got, n.Tenants)
 	}
 }
 
@@ -211,7 +211,7 @@ func TestSpotDetectionAcrossProviders(t *testing.T) {
 		{"eks-uppercase", map[string]string{"eks.amazonaws.com/capacityType": "SPOT"}, true},
 		{"lifecycle", map[string]string{"node.kubernetes.io/lifecycle": "spot"}, true},
 		{"on-demand", map[string]string{"karpenter.sh/capacity-type": "on-demand"}, false},
-		{"unlabelled", nil, false},
+		{"unlabeled", nil, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

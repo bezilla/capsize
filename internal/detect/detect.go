@@ -8,7 +8,7 @@ import (
 	"github.com/bezilla/capsize/internal/units"
 )
 
-// Options tunes the thresholds that are judgement calls rather than facts.
+// Options tunes the thresholds that are judgment calls rather than facts.
 type Options struct {
 	// Divergence is the factor by which a request must exceed observed usage
 	// before capsize calls it over-provisioned.
@@ -105,12 +105,12 @@ func shapeFindings(w *model.Workload, s risk.Score) []Finding {
 		if !anyLimit {
 			sev := SeverityWarn
 			detail := "declares no CPU or memory limit, so nothing but the node's own capacity bounds it"
-			if s.Scored && s.CeilingSource == risk.FromNode && s.Neighbours > 0 {
+			if s.Scored && s.CeilingSource == risk.FromNode && s.Neighbors > 0 {
 				sev = SeverityCritical
 				detail = fmt.Sprintf(
 					"declares no CPU or memory limit, so its memory ceiling is the whole of %s (%s) "+
 						"and it shares that node with %d other workload(s)",
-					s.Node, units.Bytes(s.Ceiling), s.Neighbours)
+					s.Node, units.Bytes(s.Ceiling), s.Neighbors)
 			}
 			out = append(out, base(RuleNoLimits, sev, "no resource limits", c.Name, detail))
 		}

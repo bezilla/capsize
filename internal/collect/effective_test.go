@@ -29,9 +29,9 @@ import (
 // "limits only" row is the regression guard.
 func TestEffectiveResourcesAcrossAllFourCombinations(t *testing.T) {
 	const (
-		nodeGi     = 16
-		neighbours = 4
-		floor      = 10 * units.Mi
+		nodeGi    = 16
+		neighbors = 4
+		floor     = 10 * units.Mi
 	)
 
 	cases := []struct {
@@ -106,7 +106,7 @@ func TestEffectiveResourcesAcrossAllFourCombinations(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			inv := collectOne(t, resourcesFrom(tc.requests, tc.limits), nodeGi, neighbours)
+			inv := collectOne(t, resourcesFrom(tc.requests, tc.limits), nodeGi, neighbors)
 			w := inv.Workloads[0]
 
 			if len(w.Containers) != 1 {
@@ -144,7 +144,7 @@ func TestEffectiveResourcesAcrossAllFourCombinations(t *testing.T) {
 				t.Errorf("ratio = %v, want %v", s.Ratio, tc.wantRatio)
 			}
 
-			wantRisk := tc.wantRatio * math.Log2(1+neighbours)
+			wantRisk := tc.wantRatio * math.Log2(1+neighbors)
 			if math.Abs(s.Risk-wantRisk) > 1e-6 {
 				t.Errorf("risk = %v, want %v", s.Risk, wantRisk)
 			}
@@ -193,10 +193,10 @@ func resourcesFrom(requests, limits map[corev1.ResourceName]string) corev1.Resou
 	return out
 }
 
-// collectOne builds a one-deployment cluster on a node with n neighbours and
+// collectOne builds a one-deployment cluster on a node with n neighbors and
 // runs it through the real collection path, so the test exercises the code
 // that reads the PodTemplateSpec rather than a hand-built model.
-func collectOne(t *testing.T, res corev1.ResourceRequirements, nodeGi int64, neighbours int) *model.Inventory {
+func collectOne(t *testing.T, res corev1.ResourceRequirements, nodeGi int64, neighbors int) *model.Inventory {
 	t.Helper()
 
 	rsRef := ctrlRef("ReplicaSet", "subject-1")
@@ -210,7 +210,7 @@ func collectOne(t *testing.T, res corev1.ResourceRequirements, nodeGi int64, nei
 		}},
 		Status: corev1.PodStatus{Phase: corev1.PodRunning},
 	}}
-	for i := 0; i < neighbours; i++ {
+	for i := 0; i < neighbors; i++ {
 		name := string(rune('a' + i))
 		owner := ctrlRef("DaemonSet", name)
 		pods = append(pods, pod("kube-system", name+"-pod", "n1", &owner, ctr("x", "8Mi", "8Mi")))

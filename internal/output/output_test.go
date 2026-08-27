@@ -267,3 +267,39 @@ func TestHiddenCountsSurviveIntoJSON(t *testing.T) {
 		t.Errorf("hidden counts lost in JSON: %d/%d", back.HiddenSystemWorkloads, back.HiddenSystemNamespaces)
 	}
 }
+
+// The JSON schema is a contract. "neighbors" was renamed from the British
+// spelling in v0.1.1, before anyone was consuming it; this pins the American
+// spelling so the field cannot drift back.
+func TestJSONUsesAmericanSpelling(t *testing.T) {
+	inv, scores, findings := fixture()
+	r := Build(inv, scores, findings, nil)
+
+	var buf bytes.Buffer
+	if err := JSON(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	raw := buf.String()
+
+	if !strings.Contains(raw, `"neighbors"`) {
+		t.Error(`the JSON report must expose the score field as "neighbors"`)
+	}
+	if strings.Contains(raw, "neighbour") {
+		t.Error(`"neighbour" must not appear anywhere in the JSON output`)
+	}
+
+	// And the value has to survive the rename, not just the key.
+	var back Report
+	if err := json.Unmarshal(buf.Bytes(), &back); err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, row := range back.Rows {
+		if row.Score.Neighbors > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("no row round-tripped a non-zero neighbor count; the rename lost the value")
+	}
+}

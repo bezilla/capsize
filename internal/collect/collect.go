@@ -68,7 +68,7 @@ func Collect(ctx context.Context, r Reader, o Options) (*model.Inventory, []stri
 
 	// --- nodes ------------------------------------------------------------
 	// Nodes are cluster-scoped. Without them there is no ceiling and no
-	// neighbour count, so blast radius is simply unavailable.
+	// neighbor count, so blast radius is simply unavailable.
 	nodes, err := r.Nodes(ctx)
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf(
@@ -94,8 +94,8 @@ func Collect(ctx context.Context, r Reader, o Options) (*model.Inventory, []stri
 
 	// --- pods -------------------------------------------------------------
 	// Tenancy is always read cluster-wide when permitted, even for a
-	// single-namespace scan: a neighbour in kube-system will OOM just as
-	// dead as one in your namespace. If that read is denied, neighbour
+	// single-namespace scan: a neighbor in kube-system will OOM just as
+	// dead as one in your namespace. If that read is denied, neighbor
 	// counts become a lower bound and we say so.
 	tenancyPods, err := r.Pods(ctx, "")
 	tenancyClusterWide := err == nil
@@ -104,7 +104,7 @@ func Collect(ctx context.Context, r Reader, o Options) (*model.Inventory, []stri
 			return nil, warnings, fmt.Errorf("listing pods: %w", err)
 		}
 		warnings = append(warnings, fmt.Sprintf(
-			"cannot list pods cluster-wide (%v) - neighbour counts are a lower bound "+
+			"cannot list pods cluster-wide (%v) - neighbor counts are a lower bound "+
 				"and risk scores are therefore understated", rootCause(err)))
 		tenancyPods, err = r.Pods(ctx, o.Namespace)
 		if err != nil {

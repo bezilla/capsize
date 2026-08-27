@@ -32,7 +32,7 @@ func ref(ns, name string) Ref {
 	return Ref{Kind: KindDeployment, Namespace: ns, Name: name}
 }
 
-func inventoryWithSystemNeighbours() *Inventory {
+func inventoryWithSystemNeighbors() *Inventory {
 	mine := ref("prod", "api")
 	sys1 := ref("kube-system", "coredns")
 	sys2 := ref("kube-system", "kube-proxy")
@@ -60,12 +60,12 @@ func inventoryWithSystemNeighbours() *Inventory {
 }
 
 func TestHideSystemRemovesReportingScopeOnly(t *testing.T) {
-	inv := inventoryWithSystemNeighbours()
+	inv := inventoryWithSystemNeighbors()
 	mine := ref("prod", "api")
 
-	before := inv.Nodes[0].Neighbours(mine)
+	before := inv.Nodes[0].Neighbors(mine)
 	if before != 3 {
-		t.Fatalf("precondition: want 3 neighbours, got %d", before)
+		t.Fatalf("precondition: want 3 neighbors, got %d", before)
 	}
 
 	gotW, gotN := inv.HideSystem()
@@ -84,8 +84,8 @@ func TestHideSystemRemovesReportingScopeOnly(t *testing.T) {
 	}
 
 	// The point of the whole change: tenancy is untouched.
-	if after := inv.Nodes[0].Neighbours(mine); after != before {
-		t.Fatalf("neighbours changed from %d to %d; a kube-system pod OOMs you "+
+	if after := inv.Nodes[0].Neighbors(mine); after != before {
+		t.Fatalf("neighbors changed from %d to %d; a kube-system pod OOMs you "+
 			"just as dead whether or not you wanted to read about it", before, after)
 	}
 	if len(inv.Nodes[0].Tenants) != 4 {

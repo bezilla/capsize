@@ -62,7 +62,7 @@ type Container struct {
 // admission: when a container declares a limit for a resource but no request,
 // the request is set equal to the limit.
 //
-// This is core API behaviour, not a LimitRange, so it happens on every
+// This is core API behavior, not a LimitRange, so it happens on every
 // cluster with no admission plugin involved and it is invisible in the
 // PodTemplateSpec. Reading the template verbatim therefore sees "no request"
 // where the scheduler sees a full reservation - and, for a container whose
@@ -194,7 +194,7 @@ type Node struct {
 	AllocatableMem int64  `json:"allocatableMemBytes"`
 	AllocatableCPU int64  `json:"allocatableCpuMilli"`
 
-	// Spot is true when any recognised capacity-type label marks this node as
+	// Spot is true when any recognized capacity-type label marks this node as
 	// interruptible. SpotEvidence records which label proved it, so the finding
 	// can be argued with.
 	Spot         bool   `json:"spot"`
@@ -204,8 +204,8 @@ type Node struct {
 	Tenants map[Ref]bool `json:"-"`
 }
 
-// Neighbours counts the distinct workloads on this node other than self.
-func (n *Node) Neighbours(self Ref) int {
+// Neighbors counts the distinct workloads on this node other than self.
+func (n *Node) Neighbors(self Ref) int {
 	count := 0
 	for ref := range n.Tenants {
 		if ref != self {

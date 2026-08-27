@@ -52,7 +52,7 @@ func approx(t *testing.T, label string, got, want float64) {
 }
 
 func TestFormulaMatchesTheSpecExactly(t *testing.T) {
-	// 16Gi node, 512Mi limit, 256Mi request, 3 neighbours, on-demand.
+	// 16Gi node, 512Mi limit, 256Mi request, 3 neighbors, on-demand.
 	// ceiling = min(16Gi, 512Mi) = 512Mi
 	// ratio   = 512/256 = 2
 	// risk    = 2 * log2(4) * 1.0 = 4
@@ -66,8 +66,8 @@ func TestFormulaMatchesTheSpecExactly(t *testing.T) {
 	}
 	approx(t, "ratio", s.Ratio, 2)
 	approx(t, "risk", s.Risk, 4)
-	if s.Neighbours != 3 {
-		t.Fatalf("neighbours = %d, want 3", s.Neighbours)
+	if s.Neighbors != 3 {
+		t.Fatalf("neighbors = %d, want 3", s.Neighbors)
 	}
 	if s.CeilingSource != FromLimit {
 		t.Fatalf("ceiling source = %q, want %q", s.CeilingSource, FromLimit)
@@ -126,7 +126,7 @@ func TestSoleTenantScoresZeroAndSaysSo(t *testing.T) {
 		t.Fatalf("risk = %v, want 0: log2(1+0) is zero by definition", s.Risk)
 	}
 	if !s.SoleTenant() {
-		t.Fatal("a zero score with no neighbours must be distinguishable from a safe workload")
+		t.Fatal("a zero score with no neighbors must be distinguishable from a safe workload")
 	}
 }
 
@@ -160,8 +160,8 @@ func TestWorstNodeWinsWhenPodsAreSpread(t *testing.T) {
 	if s.Node != "crowded" {
 		t.Fatalf("scored against %q; blast radius is a worst-case question", s.Node)
 	}
-	if s.Neighbours != 7 {
-		t.Fatalf("neighbours = %d, want 7", s.Neighbours)
+	if s.Neighbors != 7 {
+		t.Fatalf("neighbors = %d, want 7", s.Neighbors)
 	}
 }
 

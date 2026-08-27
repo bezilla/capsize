@@ -44,7 +44,7 @@ func runScan(ctx context.Context, o *Options, out io.Writer) error {
 	}
 
 	// Score first, against the complete inventory. Blast radius is a property
-	// of a node, so a kube-system pod counts as a neighbour whether or not the
+	// of a node, so a kube-system pod counts as a neighbor whether or not the
 	// reader wants to read about it. Only after every score is fixed does the
 	// reporting scope narrow.
 	scores := risk.All(inv, risk.Options{RequestFloor: tuning.requestFloor})

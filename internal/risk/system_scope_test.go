@@ -49,14 +49,14 @@ func TestHidingSystemWorkloadsDoesNotChangeAnyScore(t *testing.T) {
 	if a.Risk != b.Risk {
 		t.Errorf("risk moved from %v to %v when system workloads were hidden", b.Risk, a.Risk)
 	}
-	if a.Neighbours != b.Neighbours {
-		t.Errorf("neighbours moved from %d to %d; tenancy must stay cluster-wide", b.Neighbours, a.Neighbours)
+	if a.Neighbors != b.Neighbors {
+		t.Errorf("neighbors moved from %d to %d; tenancy must stay cluster-wide", b.Neighbors, a.Neighbors)
 	}
 	if a.Ratio != b.Ratio || a.Ceiling != b.Ceiling || a.Node != b.Node {
 		t.Errorf("score inputs moved:\n before %+v\n after  %+v", b, a)
 	}
-	if a.Neighbours != 3 {
-		t.Errorf("neighbours = %d, want 3 provider-owned tenants", a.Neighbours)
+	if a.Neighbors != 3 {
+		t.Errorf("neighbors = %d, want 3 provider-owned tenants", a.Neighbors)
 	}
 }
 
@@ -81,8 +81,8 @@ func TestFilteringTenancyWouldUnderstateTheScore(t *testing.T) {
 		t.Fatalf("the guard is toothless: dropping system tenancy gave %v, correct is %v",
 			wrong.Risk, correct.Risk)
 	}
-	if wrong.Neighbours != 0 || correct.Neighbours != 3 {
-		t.Fatalf("neighbours: wrong=%d correct=%d", wrong.Neighbours, correct.Neighbours)
+	if wrong.Neighbors != 0 || correct.Neighbors != 3 {
+		t.Fatalf("neighbors: wrong=%d correct=%d", wrong.Neighbors, correct.Neighbors)
 	}
 	_ = mine
 }

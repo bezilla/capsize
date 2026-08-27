@@ -5,7 +5,7 @@ what I considered and threw away. The README says what the tool does. This
 says why it computes what it computes, so you can decide whether to trust the
 number.
 
-Where a choice rests on judgement rather than evidence, I say so. Where I
+Where a choice rests on judgment rather than evidence, I say so. Where I
 have no principled reason for a value, I say that too rather than
 manufacturing one after the fact.
 
@@ -16,9 +16,9 @@ manufacturing one after the fact.
 ```
 ceiling     = min(node_allocatable_mem, container_mem_limit)
 ratio       = ceiling / workload_mem_request
-neighbours  = distinct other workloads schedulable on that node
+neighbors  = distinct other workloads schedulable on that node
 spot_factor = 1.5 if the node is spot/preemptible else 1.0
-risk        = ratio × log2(1 + neighbours) × spot_factor
+risk        = ratio × log2(1 + neighbors) × spot_factor
 ```
 
 ---
@@ -35,13 +35,13 @@ the ceiling automatically, so the metric rewards bounding a workload as a
 consequence of the arithmetic rather than as a rule bolted on beside it.
 Fewer branches, same result.
 
-The fallback behaviour follows from the same expression. With no limit set
+The fallback behavior follows from the same expression. With no limit set
 there is nothing to take the minimum against, so the ceiling is the whole
 node, and an unbounded workload scores dramatically higher than an identical
 bounded one. That is not a special case either; it is what the formula
 already says.
 
-## 2. `log2(1 + neighbours)`, not linear
+## 2. `log2(1 + neighbors)`, not linear
 
 The second tenant on a node matters far more than the twelfth. Linear scaling
 would let crowded nodes dominate the ranking purely by count, and drown out a
@@ -63,7 +63,7 @@ here means "nothing to endanger", not "well configured".
 Preemption changes node packing, and changed packing is what turned a latent
 bug into a production outage.
 
-The multiplier is a judgement, not a measurement. I did not derive 1.5 from
+The multiplier is a judgment, not a measurement. I did not derive 1.5 from
 anything, and I have no argument for it beyond the one above.
 
 ## 4. Observed usage takes the busiest pod, not the mean
@@ -116,7 +116,7 @@ against.
 
 ## 7. The formula lives in exactly one function
 
-`risk.Compute(ceiling, request, neighbours, spot)` is the only place the
+`risk.Compute(ceiling, request, neighbors, spot)` is the only place the
 arithmetic is written down. Live scoring calls it, and so does
 `Score.Project`, which prices a proposed change.
 
@@ -137,7 +137,7 @@ This one is a worked example rather than an argument, because it is the
 strongest case in this document for testing against a real API server.
 
 Kubernetes defaults a container's requests to its limits when limits are set
-and requests are omitted. It is core API behaviour — not a LimitRange, no
+and requests are omitted. It is core API behavior — not a LimitRange, no
 admission plugin — and it is invisible in the `PodTemplateSpec`.
 
 capsize originally read the template verbatim. A workload declaring
@@ -177,9 +177,9 @@ nobody has seen fail is a guard nobody knows works.
 
 ---
 
-## The weak part: `neighbours` is an approximation
+## The weak part: `neighbors` is an approximation
 
-`neighbours` counts distinct workloads with pods **currently running** on a
+`neighbors` counts distinct workloads with pods **currently running** on a
 node. The formula wants workloads **schedulable** on it.
 
 Taints, `nodeSelector`s and anti-affinity rules make those two sets differ,
@@ -187,11 +187,11 @@ and I do not currently model any of them.
 
 This is the only approximation in the formula, and it is the worst place to
 have one, because the term multiplies every other term. A workload whose
-neighbours are undercounted has its risk understated proportionally. Treat
+neighbors are undercounted has its risk understated proportionally. Treat
 the ranking as sound and the absolute values as indicative.
 
 The related limit is scope: when capsize cannot list pods cluster-wide it
-falls back to the namespace in scope, which understates neighbours further.
+falls back to the namespace in scope, which understates neighbors further.
 It says so in the output rather than quietly reporting a smaller number.
 
 ---

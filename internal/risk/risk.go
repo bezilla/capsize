@@ -5,9 +5,9 @@
 //
 //	ceiling     = min(node_allocatable_mem, container_mem_limit)
 //	ratio       = ceiling / workload_mem_request
-//	neighbours  = distinct OTHER workloads schedulable on that node
+//	neighbors  = distinct OTHER workloads schedulable on that node
 //	spot_factor = 1.5 on interruptible capacity, else 1.0
-//	risk        = ratio * log2(1 + neighbours) * spot_factor
+//	risk        = ratio * log2(1 + neighbors) * spot_factor
 //
 // Two consequences are intended rather than accidental, and both are the
 // thesis of the tool expressed arithmetically:
@@ -16,7 +16,7 @@
 //     ceiling falls back to the whole node. An unbounded workload therefore
 //     scores dramatically higher than a bounded one, because it genuinely is
 //     dramatically more dangerous: nothing stops it walking the node to zero
-//     and taking every neighbour with it.
+//     and taking every neighbor with it.
 //   - A workload alone on its node scores zero, because log2(1+0) is zero.
 //     It has nothing to take down but itself. That is not a bug and it is not
 //     a clean bill of health; it is the honest answer to the question asked.
@@ -32,7 +32,7 @@ import (
 // vanish on somebody else's schedule, so the same overcommit hurts more.
 const SpotFactor = 1.5
 
-// Options tunes the parts of the score that are judgement calls.
+// Options tunes the parts of the score that are judgment calls.
 type Options struct {
 	// RequestFloor is the memory request assumed for a workload that declares
 	// none. Without it the ratio is a division by zero, and an infinity sorts
@@ -67,7 +67,7 @@ type Score struct {
 	RequestAssumed bool          `json:"requestAssumed"`
 
 	Node       string  `json:"node"`
-	Neighbours int     `json:"neighbours"`
+	Neighbors  int     `json:"neighbors"`
 	Spot       bool    `json:"spot"`
 	SpotFactor float64 `json:"spotFactor"`
 
@@ -82,13 +82,13 @@ type Score struct {
 
 // SoleTenant reports the zero-risk-but-not-safe case: scored, but with nothing
 // on the node to endanger.
-func (s Score) SoleTenant() bool { return s.Scored && s.Neighbours == 0 }
+func (s Score) SoleTenant() bool { return s.Scored && s.Neighbors == 0 }
 
 // Compute is the formula itself, and the only place it is written down.
 // Callers pass the four inputs; both live scoring and what-if projection go
 // through here so a recommendation can never be evaluated against different
 // arithmetic than the finding that prompted it.
-func Compute(ceiling, request int64, neighbours int, spot bool) (riskScore, ratio float64) {
+func Compute(ceiling, request int64, neighbors int, spot bool) (riskScore, ratio float64) {
 	if request <= 0 || ceiling <= 0 {
 		return 0, 0
 	}
@@ -97,13 +97,13 @@ func Compute(ceiling, request int64, neighbours int, spot bool) (riskScore, rati
 	if spot {
 		factor = SpotFactor
 	}
-	return ratio * math.Log2(1+float64(neighbours)) * factor, ratio
+	return ratio * math.Log2(1+float64(neighbors)) * factor, ratio
 }
 
 // Of computes the blast radius of w against every node it currently
 // occupies and returns the worst of them. Blast radius is a worst-case
 // question: the mean across nodes would hide the one node where this workload
-// sits next to thirty neighbours.
+// sits next to thirty neighbors.
 func Of(w *model.Workload, inv *model.Inventory, o Options) Score {
 	s := Score{Ref: w.Ref, SpotFactor: 1.0}
 
@@ -134,14 +134,14 @@ func Of(w *model.Workload, inv *model.Inventory, o Options) Score {
 		if bounded && limit > 0 && limit < n.AllocatableMem {
 			ceiling, source = limit, FromLimit
 		}
-		neighbours := n.Neighbours(w.Ref)
-		r, ratio := Compute(ceiling, request, neighbours, n.Spot)
+		neighbors := n.Neighbors(w.Ref)
+		r, ratio := Compute(ceiling, request, neighbors, n.Spot)
 
 		if !s.Scored || r > s.Risk {
 			s.Scored = true
 			s.Risk, s.Ratio = r, ratio
 			s.Ceiling, s.CeilingSource = ceiling, source
-			s.Node, s.Neighbours = n.Name, neighbours
+			s.Node, s.Neighbors = n.Name, neighbors
 			s.Spot = n.Spot
 			s.SpotFactor = 1.0
 			if n.Spot {
@@ -156,11 +156,11 @@ func Of(w *model.Workload, inv *model.Inventory, o Options) Score {
 }
 
 // Project answers "what would this score become if the request changed to
-// request and the ceiling to ceiling?", holding node, neighbours and capacity
+// request and the ceiling to ceiling?", holding node, neighbors and capacity
 // type fixed. It is how capsize prices a cost recommendation in blast-radius
 // terms before suggesting it.
 func (s Score) Project(request, ceiling int64) (riskScore, ratio float64) {
-	return Compute(ceiling, request, s.Neighbours, s.Spot)
+	return Compute(ceiling, request, s.Neighbors, s.Spot)
 }
 
 // candidateNodes returns the nodes to score against: the ones the workload's

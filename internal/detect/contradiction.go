@@ -17,7 +17,7 @@ import (
 // so much as a rough indication of intent; the container's actual ceiling is
 // the node. Halve the request and you have not made the workload smaller, you
 // have made it denser - more replicas per node, each still able to grow to the
-// full node, now with more neighbours to take down when one of them does.
+// full node, now with more neighbors to take down when one of them does.
 //
 // So capsize prices every request reduction in both currencies and refuses to
 // recommend one that raises blast radius without naming the guard that has to
@@ -43,12 +43,12 @@ func contradictions(inv *model.Inventory, scores map[model.Ref]risk.Score, findi
 			why = fmt.Sprintf(
 				"with no memory limit set, the request is the only number holding this workload below "+
 					"%s of allocatable memory on %s, which it shares with %d other workload(s)",
-				units.Bytes(s.Ceiling), s.Node, s.Neighbours)
+				units.Bytes(s.Ceiling), s.Node, s.Neighbors)
 		} else {
 			why = fmt.Sprintf(
 				"the memory limit stays at %s while the request drops to %s, widening the gap between "+
 					"what is reserved and what may be consumed on %s alongside %d other workload(s)",
-				units.Bytes(s.Ceiling), units.Bytes(rec.Proposed), s.Node, s.Neighbours)
+				units.Bytes(s.Ceiling), units.Bytes(rec.Proposed), s.Node, s.Neighbors)
 		}
 
 		saving := ""

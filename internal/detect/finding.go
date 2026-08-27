@@ -3,7 +3,7 @@
 // Findings come in two flavours that most tools keep in separate products:
 // cost findings (this workload reserves more than it uses, or reserves
 // nothing at all) and exposure findings (this workload can take its
-// neighbours down). capsize keeps them in one list precisely so it can report
+// neighbors down). capsize keeps them in one list precisely so it can report
 // the case where acting on the first makes the second worse.
 package detect
 

@@ -19,10 +19,10 @@ import (
 func TestRecommendationBands(t *testing.T) {
 	const (
 		ki = int64(1) << 10
-		// A 16Gi node with 7 neighbours, so an unbounded workload has a real
+		// A 16Gi node with 7 neighbors, so an unbounded workload has a real
 		// blast radius and shrinking its request genuinely raises it.
-		nodeGi     = 16
-		neighbours = 7
+		nodeGi    = 16
+		neighbors = 7
 	)
 
 	cases := []struct {
@@ -110,7 +110,7 @@ func TestRecommendationBands(t *testing.T) {
 			w := &model.Workload{Ref: ref("api"), Replicas: 2, Containers: []model.Container{
 				container("app", memReq(tc.req)),
 			}}
-			inv, scores := scene(w, nodeGi, neighbours, false)
+			inv, scores := scene(w, nodeGi, neighbors, false)
 			inv.MetricsAvailable = true
 			inv.Usage[w.Ref] = model.Usage{MemBytes: tc.usage, Samples: 2}
 

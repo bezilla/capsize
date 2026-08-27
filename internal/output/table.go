@@ -19,7 +19,7 @@ type TableOptions struct {
 
 // Table renders the report for a human, worst first.
 func Table(w io.Writer, r *Report, o TableOptions) error {
-	p := palette{on: colourEnabled(w, o.NoColor)}
+	p := palette{on: colorEnabled(w, o.NoColor)}
 	b := &strings.Builder{}
 
 	header(b, p, r)
@@ -48,13 +48,13 @@ func header(b *strings.Builder, p palette, r *Report) {
 		p.bold("capsize"), p.blue(ctx), p.blue(r.Scope))
 
 	if r.MetricsAvailable {
-		fmt.Fprintf(b, "%s\n", p.grey("usage data: metrics-server"))
+		fmt.Fprintf(b, "%s\n", p.gray("usage data: metrics-server"))
 	} else {
 		note := r.MetricsNote
 		if note == "" {
 			note = "unavailable"
 		}
-		fmt.Fprintf(b, "%s\n", p.grey("usage data: none - "+note+
+		fmt.Fprintf(b, "%s\n", p.gray("usage data: none - "+note+
 			"; request-vs-usage findings are unavailable, static findings are unaffected"))
 	}
 	for _, warn := range r.Warnings {
@@ -77,7 +77,7 @@ func hiddenSystem(b *strings.Builder, p palette, r *Report) {
 	if n > 0 {
 		parts = append(parts, fmt.Sprintf("%d system namespace(s)", n))
 	}
-	fmt.Fprintf(b, "%s\n", p.grey(strings.Join(parts, " and ")+
+	fmt.Fprintf(b, "%s\n", p.gray(strings.Join(parts, " and ")+
 		" hidden - use --include-system to show them"))
 }
 
@@ -93,7 +93,7 @@ func contradictionBanner(b *strings.Builder, p palette, r *Report) {
 func blastRadius(b *strings.Builder, p palette, r *Report, top int) {
 	section(b, p, "blast radius")
 	if len(r.Rows) == 0 {
-		fmt.Fprintf(b, "  %s\n", p.grey("no workloads in scope"))
+		fmt.Fprintf(b, "  %s\n", p.gray("no workloads in scope"))
 		return
 	}
 	hidden := r.Limit(top)
@@ -106,7 +106,7 @@ func blastRadius(b *strings.Builder, p palette, r *Report, top int) {
 	writeGrid(b, p, cols, rows)
 
 	if hidden > 0 {
-		fmt.Fprintf(b, "  %s\n", p.grey(fmt.Sprintf("... %d lower-risk workload(s) hidden by --top", hidden)))
+		fmt.Fprintf(b, "  %s\n", p.gray(fmt.Sprintf("... %d lower-risk workload(s) hidden by --top", hidden)))
 	}
 }
 
@@ -114,8 +114,8 @@ func tableRow(p palette, row Row) []string {
 	s := row.Score
 	if !s.Scored {
 		return []string{
-			p.grey("-"), p.grey("-"), p.grey("-"), p.grey("-"), p.grey("-"), p.grey("-"),
-			string(row.Ref.Kind), row.Ref.Short(), p.grey("-"), p.grey(s.Reason),
+			p.gray("-"), p.gray("-"), p.gray("-"), p.gray("-"), p.gray("-"), p.gray("-"),
+			string(row.Ref.Kind), row.Ref.Short(), p.gray("-"), p.gray(s.Reason),
 		}
 	}
 
@@ -123,7 +123,7 @@ func tableRow(p palette, row Row) []string {
 	switch {
 	case row.Contradictions > 0:
 		riskCell = p.red(riskCell)
-	case s.CeilingSource == risk.FromNode && s.Neighbours > 0:
+	case s.CeilingSource == risk.FromNode && s.Neighbors > 0:
 		riskCell = p.yellow(riskCell)
 	}
 
@@ -144,7 +144,7 @@ func tableRow(p palette, row Row) []string {
 
 	node := s.Node
 	if s.Hypothetical {
-		node = p.grey(node + " (forecast)")
+		node = p.gray(node + " (forecast)")
 	}
 
 	var flags []string
@@ -152,7 +152,7 @@ func tableRow(p palette, row Row) []string {
 		flags = append(flags, p.red("contradiction"))
 	}
 	if s.SoleTenant() {
-		flags = append(flags, p.grey("sole tenant"))
+		flags = append(flags, p.gray("sole tenant"))
 	}
 	if row.Findings > 0 {
 		flags = append(flags, fmt.Sprintf("%d finding(s)", row.Findings))
@@ -161,7 +161,7 @@ func tableRow(p palette, row Row) []string {
 	return []string{
 		riskCell,
 		units.Ratio(s.Ratio),
-		strconv.Itoa(s.Neighbours),
+		strconv.Itoa(s.Neighbors),
 		spot,
 		ceiling,
 		request,
@@ -199,7 +199,7 @@ func writeGrid(b *strings.Builder, p palette, cols []string, rows [][]string) {
 		b.WriteString("\n")
 	}
 
-	line(cols, p.grey)
+	line(cols, p.gray)
 	for _, row := range rows {
 		line(row, func(s string) string { return s })
 	}
@@ -213,7 +213,7 @@ func contradictionDetail(b *strings.Builder, p palette, r *Report) {
 	section(b, p, fmt.Sprintf("contradictions (%d)", len(cs)))
 	for _, f := range cs {
 		fmt.Fprintf(b, "  %s %s\n", p.red(p.bold(f.Ref.Short())),
-			p.grey(fmt.Sprintf("(%s, risk %s)", f.Ref.Kind, units.Score(f.Risk))))
+			p.gray(fmt.Sprintf("(%s, risk %s)", f.Ref.Kind, units.Score(f.Risk))))
 		wrapInto(b, f.Detail, "    ", 88)
 	}
 }
@@ -240,7 +240,7 @@ func findings(b *strings.Builder, p palette, r *Report) {
 			subject += "/" + f.Container
 		}
 		fmt.Fprintf(b, "  %s %s  %s  %s\n",
-			severityTag(p, f.Severity), p.grey(f.Rule), p.bold(subject), f.Title)
+			severityTag(p, f.Severity), p.gray(f.Rule), p.bold(subject), f.Title)
 		wrapInto(b, f.Detail, "    ", 88)
 	}
 }
@@ -252,7 +252,7 @@ func severityTag(p palette, s detect.Severity) string {
 	case detect.SeverityWarn:
 		return p.yellow(pad("warn", 8))
 	default:
-		return p.grey(pad("info", 8))
+		return p.gray(pad("info", 8))
 	}
 }
 
@@ -263,7 +263,7 @@ func namespaces(b *strings.Builder, p palette, r *Report) {
 	section(b, p, fmt.Sprintf("namespaces with no LimitRange and no ResourceQuota (%d)", len(r.Namespaces)))
 	for _, ns := range r.Namespaces {
 		fmt.Fprintf(b, "  %s %s\n", p.bold(ns.Name),
-			p.grey(fmt.Sprintf("(%d workload(s) admitted with no defaults and no cap)", ns.Workloads)))
+			p.gray(fmt.Sprintf("(%d workload(s) admitted with no defaults and no cap)", ns.Workloads)))
 	}
 }
 
@@ -277,7 +277,7 @@ func summary(b *strings.Builder, p palette, r *Report) {
 		r.Counts.Total(),
 		p.red(strconv.Itoa(r.Counts.Critical)),
 		p.yellow(strconv.Itoa(r.Counts.Warn)),
-		p.grey(strconv.Itoa(r.Counts.Info)))
+		p.gray(strconv.Itoa(r.Counts.Info)))
 	if n := len(r.Contradictions()); n > 0 {
 		fmt.Fprintf(b, ", %s of which %s a cost fix that raises blast radius",
 			p.red(strconv.Itoa(n)), plural(n, "is", "are"))
@@ -286,9 +286,9 @@ func summary(b *strings.Builder, p palette, r *Report) {
 
 	if r.MaxRiskRef != nil {
 		fmt.Fprintf(b, "  highest blast radius: %s %s\n",
-			p.bold(units.Score(r.MaxRisk)), p.grey("("+r.MaxRiskRef.Short()+")"))
+			p.bold(units.Score(r.MaxRisk)), p.gray("("+r.MaxRiskRef.Short()+")"))
 	}
-	fmt.Fprintf(b, "  %s\n", p.grey("* ceiling is the node's allocatable memory because no container limit bounds it"))
+	fmt.Fprintf(b, "  %s\n", p.gray("* ceiling is the node's allocatable memory because no container limit bounds it"))
 }
 
 // wrapInto word-wraps text to width, prefixing every line with indent.

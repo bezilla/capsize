@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// palette is a tiny ANSI helper. capsize has no colour dependency: a report
+// palette is a tiny ANSI helper. capsize has no color dependency: a report
 // that has to be pasted into a ticket should not carry a rendering library.
 type palette struct{ on bool }
 
@@ -17,7 +17,7 @@ const (
 	ansiRed    = "\x1b[31m"
 	ansiYellow = "\x1b[33m"
 	ansiBlue   = "\x1b[36m"
-	ansiGrey   = "\x1b[90m"
+	ansiGray   = "\x1b[90m"
 )
 
 func (p palette) wrap(code, s string) string {
@@ -32,10 +32,10 @@ func (p palette) dim(s string) string    { return p.wrap(ansiDim, s) }
 func (p palette) red(s string) string    { return p.wrap(ansiRed, s) }
 func (p palette) yellow(s string) string { return p.wrap(ansiYellow, s) }
 func (p palette) blue(s string) string   { return p.wrap(ansiBlue, s) }
-func (p palette) grey(s string) string   { return p.wrap(ansiGrey, s) }
+func (p palette) gray(s string) string   { return p.wrap(ansiGray, s) }
 
 // width returns the printable width of s, ignoring escape sequences, so
-// tabwriter padding stays correct when colour is on.
+// tabwriter padding stays correct when color is on.
 func width(s string) int {
 	n, esc := 0, false
 	for _, r := range s {
@@ -60,11 +60,11 @@ func pad(s string, n int) string {
 	return s
 }
 
-// colourEnabled decides whether to emit escape sequences: never when the
+// colorEnabled decides whether to emit escape sequences: never when the
 // caller asked for --no-color, never when NO_COLOR is set (the informal
 // standard), and never when the destination is not a terminal, so a piped or
 // redirected report stays clean.
-func colourEnabled(w io.Writer, disabled bool) bool {
+func colorEnabled(w io.Writer, disabled bool) bool {
 	if disabled || os.Getenv("NO_COLOR") != "" {
 		return false
 	}

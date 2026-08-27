@@ -56,7 +56,7 @@ var rootCmd = &cobra.Command{
 
   cost waste     - missing or badly-shaped resource requests and limits
   blast radius   - how much of a node a single workload can consume before
-                   the kernel starts killing its neighbours
+                   the kernel starts killing its neighbors
 
 It reports where those two scores disagree: the workloads where the obvious
 cost recommendation ("your request is 4x your usage, shrink it") would make an
@@ -98,7 +98,7 @@ func init() {
 	f.StringVar(&opts.Context, "context", "", "kubeconfig context to use (default: current-context)")
 	f.StringVarP(&opts.Namespace, "namespace", "n", "", "namespace to scan (default: the context's namespace)")
 	f.BoolVarP(&opts.AllNS, "all-namespaces", "A", false, "scan every namespace the caller can read")
-	f.BoolVar(&opts.IncludeSystem, "include-system", false, "report provider-owned namespaces too (kube-system, kube-public, kube-node-lease, local-path-storage); they always count as neighbours regardless")
+	f.BoolVar(&opts.IncludeSystem, "include-system", false, "report provider-owned namespaces too (kube-system, kube-public, kube-node-lease, local-path-storage); they always count as neighbors regardless")
 
 	f.StringVar(&opts.RequestFloorStr, "request-floor", "10Mi", "memory request assumed for a workload that declares none, so its ratio stays finite")
 	f.StringVar(&opts.MinRequestStr, "min-request", "32Mi", "never recommend a memory request below this; advice smaller than anyone would type is not advice")
@@ -109,7 +109,7 @@ func init() {
 
 	f.BoolVar(&opts.JSON, "json", false, "emit the full report as JSON instead of a table")
 	f.IntVar(&opts.Top, "top", 0, "show only the N riskiest workloads (0 = all)")
-	f.BoolVar(&opts.NoColor, "no-color", false, "disable colour in the table output")
+	f.BoolVar(&opts.NoColor, "no-color", false, "disable color in the table output")
 
 	f.Float64Var(&opts.RiskThreshold, "risk-threshold", 0, "exit 2 if any workload's risk score exceeds this (0 = never)")
 	f.StringVar(&opts.FailOn, "fail-on", "none", "exit 2 if any finding is at or above this severity: none|info|warn|critical")

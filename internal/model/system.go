@@ -34,8 +34,8 @@ func SystemNamespace(ns string) bool {
 // HideSystem drops provider-owned workloads and namespaces from the report.
 //
 // It is deliberately a post-scoring operation. Blast radius is a property of
-// a node, not of a namespace: a kube-system neighbour will OOM you exactly as
-// dead as one of your own, so neighbour counts are read cluster-wide and
+// a node, not of a namespace: a kube-system neighbor will OOM you exactly as
+// dead as one of your own, so neighbor counts are read cluster-wide and
 // scores are computed against the complete inventory before this is called.
 // Nothing here touches Node.Tenants, which is where those counts live.
 //
