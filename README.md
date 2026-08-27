@@ -1,5 +1,9 @@
 # capsize
 
+[![CI](https://github.com/bezilla/capsize/actions/workflows/ci.yml/badge.svg)](https://github.com/bezilla/capsize/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bezilla/capsize)](https://goreportcard.com/report/github.com/bezilla/capsize)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **A read-only Kubernetes CLI that scores cost waste and blast radius at the same time — and tells you where fixing one makes the other worse.**
 
 ---
@@ -112,6 +116,28 @@ SUMMARY
 </details>
 
 `orphan-job` outranks `overprovisioned-cache` ten to one, and that is the point. It declares nothing at all, so it is scored against `--request-floor` on the tightest node in the cluster — the scheduler treats it as free, packs it anywhere, and nothing caps what it can take. The workload that *looks* wasteful is the third-riskiest thing here.
+
+## Why the two axes fight
+
+```mermaid
+flowchart TD
+    A["<b>overprovisioned-cache</b><br/>requests 512Mi · uses 40Mi · <b>no limit</b>"]
+    A --> B["every cost tool sees this<br/>and says: shrink the request"]
+    B --> C["scheduler now packs more<br/>neighbours onto the node"]
+    B --> D["ceiling is unchanged —<br/>nothing bounds it but the node"]
+    C --> E["<b>blast radius 12.2 → 122.6</b>"]
+    D --> E
+    E --> F["<b>Do this first: set a memory limit.</b><br/>Then the request is safe to cut."]
+
+    style A fill:#1f2937,stroke:#4b5563,color:#f9fafb
+    style B fill:#374151,stroke:#4b5563,color:#f9fafb
+    style E fill:#7f1d1d,stroke:#b91c1c,color:#fef2f2
+    style F fill:#14532d,stroke:#16a34a,color:#f0fdf4
+```
+
+The savings are real — 461Mi per pod. Acting on them alone makes an outage more likely, because with no limit set the *request* is the only number holding that container below the node ceiling. Cut it and you have both freed the scheduler to pack more neighbours in **and** left the workload free to take everything.
+
+Neither half is wrong. They are answers to different questions, and shipping only the first one is how you get paged.
 
 ## How the score works
 
