@@ -1,0 +1,23 @@
+version: 2
+
+updates:
+  # Go module dependencies. client-go moves fast and capsize pins it to a
+  # single minor, so weekly is frequent enough to notice a security release
+  # without a pull request every day.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      kubernetes:
+        patterns:
+          - "k8s.io/*"
+
+  # The workflows pin actions by major tag, so this catches the majors
+  # themselves moving - which is what produced the Node deprecation notice.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
