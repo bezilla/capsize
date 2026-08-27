@@ -45,10 +45,55 @@ type Container struct {
 	CPULimit   int64 `json:"cpuLimitMilli"`
 	MemLimit   int64 `json:"memLimitBytes"`
 
+	// The Has* flags describe EFFECTIVE resources, after Effective() has
+	// applied Kubernetes' own defaulting. HasMemRequest true with
+	// MemRequestDefaulted true means "the manifest declared no memory
+	// request, and the cluster supplied one equal to the limit".
 	HasCPURequest bool `json:"hasCpuRequest"`
 	HasMemRequest bool `json:"hasMemRequest"`
 	HasCPULimit   bool `json:"hasCpuLimit"`
 	HasMemLimit   bool `json:"hasMemLimit"`
+
+	CPURequestDefaulted bool `json:"cpuRequestDefaulted,omitempty"`
+	MemRequestDefaulted bool `json:"memRequestDefaulted,omitempty"`
+}
+
+// Effective applies the defaulting rule the Kubernetes core API applies at
+// admission: when a container declares a limit for a resource but no request,
+// the request is set equal to the limit.
+//
+// This is core API behaviour, not a LimitRange, so it happens on every
+// cluster with no admission plugin involved and it is invisible in the
+// PodTemplateSpec. Reading the template verbatim therefore sees "no request"
+// where the scheduler sees a full reservation - and, for a container whose
+// requests and limits match on both resources, a Guaranteed pod: the least
+// evictable class there is, not the most.
+//
+// Every model.Container that reaches scoring must have been through here.
+func (c Container) Effective() Container {
+	if !c.HasMemRequest && c.HasMemLimit {
+		c.HasMemRequest, c.MemRequest, c.MemRequestDefaulted = true, c.MemLimit, true
+	}
+	if !c.HasCPURequest && c.HasCPULimit {
+		c.HasCPURequest, c.CPURequest, c.CPURequestDefaulted = true, c.CPULimit, true
+	}
+	return c
+}
+
+// Declares reports whether the manifest itself asked for anything at all.
+// A container whose only requests were defaulted from its limits still
+// declares something; one with nothing at all is the BestEffort case.
+func (c Container) Declares() bool {
+	return c.HasCPULimit || c.HasMemLimit ||
+		(c.HasCPURequest && !c.CPURequestDefaulted) ||
+		(c.HasMemRequest && !c.MemRequestDefaulted)
+}
+
+// guaranteed reports whether this container alone satisfies the Guaranteed
+// conditions: both resources bounded, with request equal to limit.
+func (c Container) guaranteed() bool {
+	return c.HasCPURequest && c.HasCPULimit && c.CPURequest == c.CPULimit &&
+		c.HasMemRequest && c.HasMemLimit && c.MemRequest == c.MemLimit
 }
 
 // Workload is one controller (or one uncontrolled pod) and its declared shape.
@@ -97,6 +142,50 @@ func (w *Workload) CPURequest() int64 {
 		total += c.CPURequest
 	}
 	return total
+}
+
+// QoSClass is the quality-of-service class the kubelet assigns a pod, which
+// decides the order things are evicted in when a node runs short.
+type QoSClass string
+
+const (
+	QoSGuaranteed QoSClass = "Guaranteed"
+	QoSBurstable  QoSClass = "Burstable"
+	QoSBestEffort QoSClass = "BestEffort"
+)
+
+// QoS computes the class from effective resources.
+//
+// Guaranteed requires every container to bound both CPU and memory with
+// request equal to limit. BestEffort requires every container to declare
+// nothing at all - it is the absence of both requests and limits, which is
+// why a container that sets only limits is emphatically not BestEffort.
+// Everything else is Burstable.
+//
+// capsize considers regular containers and native sidecars, which is what it
+// collects; plain init containers do not affect the class in practice because
+// they have exited by the time eviction matters.
+func (w *Workload) QoS() QoSClass {
+	if len(w.Containers) == 0 {
+		return QoSBestEffort
+	}
+	guaranteed, declares := true, false
+	for _, c := range w.Containers {
+		if !c.guaranteed() {
+			guaranteed = false
+		}
+		if c.Declares() {
+			declares = true
+		}
+	}
+	switch {
+	case guaranteed:
+		return QoSGuaranteed
+	case !declares:
+		return QoSBestEffort
+	default:
+		return QoSBurstable
+	}
 }
 
 // Node is a schedulable node, its capacity, and who else is on it.

@@ -55,11 +55,11 @@ func ParseSeverity(s string) (Severity, bool) {
 
 // Rule IDs are stable across releases so a team can suppress or track one.
 const (
-	RuleNoRequests       = "CAP101" // container declares no requests at all
+	RuleNoRequests       = "CAP101" // container declares neither requests nor limits
 	RuleNoLimits         = "CAP102" // container declares no limits at all
-	RuleMemLimitNoReq    = "CAP103" // memory limit without a memory request
+	RuleMemLimitNoReq    = "CAP103" // memory request left implicit, defaulted from the limit
 	RuleMemReqNoLimit    = "CAP104" // memory request without a memory limit
-	RuleCPULimitNoReq    = "CAP105" // cpu limit without a cpu request
+	RuleCPULimitNoReq    = "CAP105" // cpu request left implicit, defaulted from the limit
 	RuleCPUReqNoLimit    = "CAP106" // cpu request without a cpu limit
 	RuleMemOverProvision = "CAP107" // memory request far above observed usage
 	RuleMemUnderProvison = "CAP108" // observed usage above the memory request

@@ -24,12 +24,15 @@ func cpuReq(m int64) ctrOpt {
 }
 func cpuLim(m int64) ctrOpt { return func(c *model.Container) { c.HasCPULimit, c.CPULimit = true, m } }
 
+// container builds a container the way collect delivers one: with Kubernetes'
+// own request-defaulting already applied. Building a raw model.Container here
+// would let a test assert behaviour that cannot occur against a real cluster.
 func container(name string, opts ...ctrOpt) model.Container {
 	c := model.Container{Name: name}
 	for _, o := range opts {
 		o(&c)
 	}
-	return c
+	return c.Effective()
 }
 
 // scene builds a one-node, one-workload cluster with the given neighbours.
@@ -84,26 +87,61 @@ func TestFlagsMissingRequestsAndLimits(t *testing.T) {
 	}
 }
 
-func TestFlagsLimitWithoutRequestAndTheReverse(t *testing.T) {
+// A container declaring only limits is Guaranteed, not BestEffort. capsize
+// reports it as manifest hygiene and nothing worse.
+func TestImplicitRequestsAreHygieneNotHazard(t *testing.T) {
 	limitOnly := &model.Workload{Ref: ref("a"), Containers: []model.Container{
 		container("app", memLim(512*units.Mi), cpuLim(500)),
 	}}
 	inv, scores := scene(limitOnly, 16, 1, false)
 	fs := Run(inv, scores, Options{})
-	if has(fs, RuleMemLimitNoReq) == nil {
-		t.Error("memory limit without a request must be flagged")
-	}
-	if has(fs, RuleCPULimitNoReq) == nil {
-		t.Error("cpu limit without a request must be flagged")
+
+	if f := has(fs, RuleNoRequests); f != nil {
+		t.Error("CAP101 must not fire: Kubernetes defaults the requests to the limits, " +
+			"so the scheduler does reserve")
 	}
 
+	mem := has(fs, RuleMemLimitNoReq)
+	if mem == nil {
+		t.Fatal("leaving the memory request implicit is still worth noting")
+	}
+	if mem.Severity != SeverityInfo {
+		t.Errorf("CAP103 severity = %s, want info: the outcome is correct, just unstated", mem.Severity)
+	}
+	if strings.Contains(mem.Detail, "BestEffort") {
+		t.Errorf("CAP103 must not claim BestEffort; this pod is Guaranteed: %q", mem.Detail)
+	}
+	if strings.Contains(mem.Detail, "reserves nothing") {
+		t.Errorf("CAP103 must not claim the scheduler reserves nothing: %q", mem.Detail)
+	}
+	if !strings.Contains(mem.Detail, string(model.QoSGuaranteed)) {
+		t.Errorf("CAP103 should name the real QoS class: %q", mem.Detail)
+	}
+
+	cpu := has(fs, RuleCPULimitNoReq)
+	if cpu == nil {
+		t.Fatal("leaving the cpu request implicit is still worth noting")
+	}
+	if cpu.Severity != SeverityInfo {
+		t.Errorf("CAP105 severity = %s, want info", cpu.Severity)
+	}
+	if strings.Contains(cpu.Detail, "never guaranteed") {
+		t.Errorf("CAP105 must not claim the share is unguaranteed; it is: %q", cpu.Detail)
+	}
+}
+
+func TestRequestWithoutLimitIsStillFlagged(t *testing.T) {
 	requestOnly := &model.Workload{Ref: ref("b"), Containers: []model.Container{
 		container("app", memReq(512*units.Mi), cpuReq(500), cpuLim(1000)),
 	}}
-	inv2, scores2 := scene(requestOnly, 16, 1, false)
-	fs2 := Run(inv2, scores2, Options{})
-	if has(fs2, RuleMemReqNoLimit) == nil {
+	inv, scores := scene(requestOnly, 16, 1, false)
+	fs := Run(inv, scores, Options{})
+	if has(fs, RuleMemReqNoLimit) == nil {
 		t.Error("memory request without a limit must be flagged")
+	}
+	// The cpu request was declared, not defaulted, so CAP105 has nothing to say.
+	if has(fs, RuleCPULimitNoReq) != nil {
+		t.Error("CAP105 must not fire when the request was declared explicitly")
 	}
 }
 

@@ -73,15 +73,20 @@ func shapeFindings(w *model.Workload, s risk.Score) []Finding {
 		}
 	}
 
+	qos := w.QoS()
+
 	for _, c := range w.Containers {
+		// These are EFFECTIVE resources: a container that declares only limits
+		// has requests, because Kubernetes defaulted them to the limits. The
+		// scheduler does reserve for it, so CAP101 must not fire.
 		anyRequest := c.HasCPURequest || c.HasMemRequest
 		anyLimit := c.HasCPULimit || c.HasMemLimit
 
 		if !anyRequest {
 			out = append(out, base(RuleNoRequests, SeverityWarn,
 				"no resource requests", c.Name,
-				"declares no CPU or memory request, so the scheduler treats it as free and packs it "+
-					"onto any node with room; it is also first in line for eviction under pressure"))
+				fmt.Sprintf("declares neither requests nor limits, so the scheduler treats it as free "+
+					"and packs it onto any node with room; the pod is %s and is evicted first", qos)))
 		}
 		if !anyLimit {
 			sev := SeverityWarn
@@ -99,28 +104,35 @@ func shapeFindings(w *model.Workload, s risk.Score) []Finding {
 		// The asymmetric cases. A limit without a request is the more
 		// dangerous direction: the scheduler reserves nothing, but the kernel
 		// still lets the container grow to the limit.
-		if c.HasMemLimit && !c.HasMemRequest {
-			out = append(out, base(RuleMemLimitNoReq, SeverityWarn,
-				"memory limit without a request", c.Name,
-				fmt.Sprintf("limits memory to %s but requests none, so the scheduler reserves nothing "+
-					"while the container may still grow to %s; it lands in the BestEffort QoS class "+
-					"and is evicted first",
-					units.Bytes(c.MemLimit), units.Bytes(c.MemLimit))))
+		// Manifest hygiene, not a hazard. Kubernetes defaults the request to
+		// the limit, so the reservation is real and correct - it is simply
+		// nowhere in the manifest, which means it changes silently the day
+		// someone edits the limit.
+		if c.HasMemLimit && c.MemRequestDefaulted {
+			out = append(out, base(RuleMemLimitNoReq, SeverityInfo,
+				"memory request left implicit", c.Name,
+				fmt.Sprintf("limits memory to %s and declares no memory request, so Kubernetes defaults "+
+					"the request to the limit: the scheduler reserves %s and this pod is %s. The outcome "+
+					"is right but implicit - spell out requests.memory: %s so the reservation cannot "+
+					"move silently when someone edits the limit",
+					units.Bytes(c.MemLimit), units.Bytes(c.MemRequest), qos, units.Bytes(c.MemLimit))))
 		}
-		if c.HasMemRequest && !c.HasMemLimit && anyLimit {
+		if c.HasMemRequest && !c.MemRequestDefaulted && !c.HasMemLimit && anyLimit {
 			out = append(out, base(RuleMemReqNoLimit, SeverityWarn,
 				"memory request without a limit", c.Name,
 				fmt.Sprintf("requests %s of memory with no memory limit; the request is a floor, not a "+
 					"ceiling, and nothing stops this container consuming the node",
 					units.Bytes(c.MemRequest))))
 		}
-		if c.HasCPULimit && !c.HasCPURequest {
-			out = append(out, base(RuleCPULimitNoReq, SeverityWarn,
-				"CPU limit without a request", c.Name,
-				fmt.Sprintf("limits CPU to %s but requests none, so it is throttled to a share it was "+
-					"never guaranteed", units.CPU(c.CPULimit))))
+		if c.HasCPULimit && c.CPURequestDefaulted {
+			out = append(out, base(RuleCPULimitNoReq, SeverityInfo,
+				"CPU request left implicit", c.Name,
+				fmt.Sprintf("limits CPU to %s and declares no CPU request, so Kubernetes defaults the "+
+					"request to the limit: the scheduler reserves %s and this pod is %s. Spell out "+
+					"requests.cpu: %s so the reservation cannot move silently when someone edits the limit",
+					units.CPU(c.CPULimit), units.CPU(c.CPURequest), qos, units.CPU(c.CPULimit))))
 		}
-		if c.HasCPURequest && !c.HasCPULimit && anyLimit {
+		if c.HasCPURequest && !c.CPURequestDefaulted && !c.HasCPULimit && anyLimit {
 			out = append(out, base(RuleCPUReqNoLimit, SeverityInfo,
 				"CPU request without a limit", c.Name,
 				fmt.Sprintf("requests %s of CPU with no CPU limit; this is often deliberate, since CPU "+

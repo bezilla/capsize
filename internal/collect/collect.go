@@ -382,7 +382,9 @@ func containerOf(c *corev1.Container, sidecar bool) model.Container {
 	if q, ok := lim[corev1.ResourceMemory]; ok {
 		mc.HasMemLimit, mc.MemLimit = true, q.Value()
 	}
-	return mc
+	// The PodTemplateSpec records what the author wrote; the cluster schedules
+	// what the API defaulted it to. Everything downstream wants the latter.
+	return mc.Effective()
 }
 
 func detectSpot(labels map[string]string) (bool, string) {
