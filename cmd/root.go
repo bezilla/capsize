@@ -27,7 +27,9 @@ type Options struct {
 
 	// Analysis tuning
 	RequestFloorStr string  // assumed memory request for a workload declaring none
+	MinRequestStr   string  // smallest memory request capsize is willing to recommend
 	Divergence      float64 // request/usage factor above which a request is "far divergent"
+	IdleRatio       float64 // over-provisioning factor above which the sample is not a sizing basis
 	Headroom        float64 // safety multiplier applied to observed usage when recommending
 	NoMetrics       bool    // skip metrics-server entirely
 
@@ -94,7 +96,9 @@ func init() {
 	f.BoolVarP(&opts.AllNS, "all-namespaces", "A", false, "scan every namespace the caller can read")
 
 	f.StringVar(&opts.RequestFloorStr, "request-floor", "10Mi", "memory request assumed for a workload that declares none, so its ratio stays finite")
+	f.StringVar(&opts.MinRequestStr, "min-request", "32Mi", "never recommend a memory request below this; advice smaller than anyone would type is not advice")
 	f.Float64Var(&opts.Divergence, "divergence", 2.0, "flag a request when it exceeds observed usage by this factor")
+	f.Float64Var(&opts.IdleRatio, "idle-ratio", 50, "above this over-provisioning factor, treat the sample as idle and offer no request recommendation")
 	f.Float64Var(&opts.Headroom, "headroom", 1.25, "safety multiplier applied to observed usage when recommending a request")
 	f.BoolVar(&opts.NoMetrics, "no-metrics", false, "do not query metrics-server, even if it is reachable")
 

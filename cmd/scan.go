@@ -18,7 +18,7 @@ import (
 
 // runScan is the whole pipeline: connect, collect, score, detect, render, gate.
 func runScan(ctx context.Context, o *Options, out io.Writer) error {
-	floor, failOn, err := validate(o)
+	tuning, failOn, err := validate(o)
 	if err != nil {
 		return err
 	}
@@ -42,10 +42,12 @@ func runScan(ctx context.Context, o *Options, out io.Writer) error {
 		return err
 	}
 
-	scores := risk.All(inv, risk.Options{RequestFloor: floor})
+	scores := risk.All(inv, risk.Options{RequestFloor: tuning.requestFloor})
 	findings := detect.Run(inv, scores, detect.Options{
 		Divergence: o.Divergence,
 		Headroom:   o.Headroom,
+		MinRequest: tuning.minRequest,
+		IdleRatio:  o.IdleRatio,
 	})
 	report := output.Build(inv, scores, findings, warnings)
 
@@ -63,33 +65,53 @@ func runScan(ctx context.Context, o *Options, out io.Writer) error {
 	return gate(o, failOn, report)
 }
 
+// tuning holds the parsed quantity flags.
+type tuning struct {
+	requestFloor int64 // scoring: assumed request for a workload declaring none
+	minRequest   int64 // advice: smallest request worth recommending
+}
+
 // validate turns the flag strings into values, failing before any cluster
 // call so a typo costs nothing.
-func validate(o *Options) (floor int64, failOn detect.Severity, err error) {
-	q, err := resource.ParseQuantity(o.RequestFloorStr)
-	if err != nil {
-		return 0, "", fmt.Errorf("--request-floor %q: %w", o.RequestFloorStr, err)
+func validate(o *Options) (t tuning, failOn detect.Severity, err error) {
+	if t.requestFloor, err = quantity("--request-floor", o.RequestFloorStr); err != nil {
+		return tuning{}, "", err
 	}
-	floor = q.Value()
-	if floor <= 0 {
-		return 0, "", fmt.Errorf("--request-floor must be greater than zero, got %q", o.RequestFloorStr)
+	if t.minRequest, err = quantity("--min-request", o.MinRequestStr); err != nil {
+		return tuning{}, "", err
 	}
 
 	if o.Divergence <= 1 {
-		return 0, "", fmt.Errorf("--divergence must be greater than 1, got %v", o.Divergence)
+		return tuning{}, "", fmt.Errorf("--divergence must be greater than 1, got %v", o.Divergence)
 	}
 	if o.Headroom < 1 {
-		return 0, "", fmt.Errorf("--headroom must be at least 1, got %v", o.Headroom)
+		return tuning{}, "", fmt.Errorf("--headroom must be at least 1, got %v", o.Headroom)
+	}
+	if o.IdleRatio <= o.Divergence {
+		return tuning{}, "", fmt.Errorf(
+			"--idle-ratio must be greater than --divergence (%v), got %v; below it there would be "+
+				"no band in which capsize recommends anything", o.Divergence, o.IdleRatio)
 	}
 
 	if strings.EqualFold(o.FailOn, "none") || o.FailOn == "" {
-		return floor, "", nil
+		return t, "", nil
 	}
 	sev, ok := detect.ParseSeverity(strings.ToLower(o.FailOn))
 	if !ok {
-		return 0, "", fmt.Errorf("--fail-on %q: want one of none, info, warn, critical", o.FailOn)
+		return tuning{}, "", fmt.Errorf("--fail-on %q: want one of none, info, warn, critical", o.FailOn)
 	}
-	return floor, sev, nil
+	return t, sev, nil
+}
+
+func quantity(flag, raw string) (int64, error) {
+	q, err := resource.ParseQuantity(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s %q: %w", flag, raw, err)
+	}
+	if q.Value() <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero, got %q", flag, raw)
+	}
+	return q.Value(), nil
 }
 
 func resolveNamespace(o *Options, c *k8s.Client) (string, error) {

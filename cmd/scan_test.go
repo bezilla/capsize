@@ -11,7 +11,10 @@ import (
 )
 
 func defaults() *Options {
-	return &Options{RequestFloorStr: "10Mi", Divergence: 2, Headroom: 1.25, FailOn: "none"}
+	return &Options{
+		RequestFloorStr: "10Mi", MinRequestStr: "32Mi",
+		Divergence: 2, IdleRatio: 50, Headroom: 1.25, FailOn: "none",
+	}
 }
 
 func TestValidateRejectsBadFlagsBeforeTouchingTheCluster(t *testing.T) {
@@ -22,7 +25,10 @@ func TestValidateRejectsBadFlagsBeforeTouchingTheCluster(t *testing.T) {
 	}{
 		{"unparseable floor", func(o *Options) { o.RequestFloorStr = "banana" }, "--request-floor"},
 		{"zero floor", func(o *Options) { o.RequestFloorStr = "0" }, "greater than zero"},
+		{"unparseable min-request", func(o *Options) { o.MinRequestStr = "lots" }, "--min-request"},
+		{"zero min-request", func(o *Options) { o.MinRequestStr = "0" }, "greater than zero"},
 		{"divergence of one", func(o *Options) { o.Divergence = 1 }, "--divergence"},
+		{"idle-ratio below divergence", func(o *Options) { o.IdleRatio = 1.5 }, "--idle-ratio"},
 		{"headroom below one", func(o *Options) { o.Headroom = 0.5 }, "--headroom"},
 		{"unknown severity", func(o *Options) { o.FailOn = "loud" }, "--fail-on"},
 	}
@@ -40,12 +46,15 @@ func TestValidateRejectsBadFlagsBeforeTouchingTheCluster(t *testing.T) {
 }
 
 func TestValidateAcceptsTheDefaults(t *testing.T) {
-	floor, failOn, err := validate(defaults())
+	tune, failOn, err := validate(defaults())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if floor != 10*units.Mi {
-		t.Errorf("floor = %d, want %d", floor, 10*units.Mi)
+	if tune.requestFloor != 10*units.Mi {
+		t.Errorf("requestFloor = %d, want %d", tune.requestFloor, 10*units.Mi)
+	}
+	if tune.minRequest != 32*units.Mi {
+		t.Errorf("minRequest = %d, want %d", tune.minRequest, 32*units.Mi)
 	}
 	if failOn != "" {
 		t.Errorf(`--fail-on none must disable the gate, got %q`, failOn)

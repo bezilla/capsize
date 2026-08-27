@@ -15,6 +15,14 @@ type Options struct {
 	Divergence float64
 	// Headroom multiplies observed usage when proposing a new request.
 	Headroom float64
+	// MinRequest is the smallest memory request capsize will put in front of a
+	// human. Recommendations are advice someone pastes into a manifest; advice
+	// below what anyone would actually type is not advice, it is arithmetic
+	// that discredits the finding carrying it.
+	MinRequest int64
+	// IdleRatio is the over-provisioning factor above which capsize stops
+	// treating the sample as a sizing basis at all. See memOverProvisioned.
+	IdleRatio float64
 	// RiskIncreaseTolerance is the fractional rise in blast radius below which
 	// a recommendation is not worth arguing about. Default 0.05.
 	RiskIncreaseTolerance float64
@@ -29,6 +37,12 @@ func (o Options) withDefaults() Options {
 	}
 	if o.RiskIncreaseTolerance <= 0 {
 		o.RiskIncreaseTolerance = 0.05
+	}
+	if o.MinRequest <= 0 {
+		o.MinRequest = 32 * units.Mi
+	}
+	if o.IdleRatio <= o.Divergence {
+		o.IdleRatio = 50
 	}
 	return o
 }
@@ -152,29 +166,7 @@ func usageFindings(w *model.Workload, s risk.Score, u model.Usage, o Options) []
 	if memReq > 0 && u.MemBytes > 0 {
 		switch {
 		case float64(memReq) > float64(u.MemBytes)*o.Divergence:
-			proposed := units.RoundUpMi(int64(float64(u.MemBytes) * o.Headroom))
-			if proposed < units.Mi {
-				proposed = units.Mi
-			}
-			rec := priceRecommendation(s, "memory request", memReq, proposed, o)
-
-			sev := SeverityInfo
-			detail := fmt.Sprintf(
-				"requests %s of memory but its busiest pod uses %s (%s over-provisioned across %d replica(s)); "+
-					"a request of %s would hold %s headroom",
-				units.Bytes(memReq), units.Bytes(u.MemBytes),
-				units.Ratio(float64(memReq)/float64(u.MemBytes)), w.Replicas,
-				units.Bytes(proposed), units.Ratio(o.Headroom))
-			if rec.IncreasesBlastRadius {
-				sev = SeverityWarn
-			}
-			f := Finding{
-				Rule: RuleMemOverProvision, Severity: sev,
-				Title:     "memory request far above observed usage",
-				Namespace: w.Ref.Namespace, Ref: &ref, Detail: detail, Risk: s.Risk,
-				Recommendation: &rec,
-			}
-			out = append(out, f)
+			out = append(out, memOverProvisioned(w, s, u, o))
 
 		case u.MemBytes > memReq:
 			out = append(out, Finding{
@@ -191,21 +183,35 @@ func usageFindings(w *model.Workload, s risk.Score, u model.Usage, o Options) []
 
 	if cpuReq := w.CPURequest(); cpuReq > 0 && u.CPUMillis > 0 &&
 		float64(cpuReq) > float64(u.CPUMillis)*o.Divergence {
-		proposed := units.RoundUpMilli(int64(float64(u.CPUMillis) * o.Headroom))
-		out = append(out, Finding{
+
+		over := float64(cpuReq) / float64(u.CPUMillis)
+		f := Finding{
 			Rule: RuleCPUOverProvision, Severity: SeverityInfo,
 			Title:     "CPU request far above observed usage",
 			Namespace: w.Ref.Namespace, Ref: &ref, Risk: s.Risk,
-			Detail: fmt.Sprintf(
+		}
+
+		// The idle argument is about the sample, not the resource: an instant
+		// reading of a workload doing nothing sizes CPU no better than memory.
+		if over >= o.IdleRatio {
+			f.Title = "CPU request far above observed usage (workload may be idle)"
+			f.Detail = fmt.Sprintf(
+				"requests %s of CPU but its busiest pod uses %s (%s). That is more likely an idle or "+
+					"scaled-down workload than a sizing error - confirm it does work under load before "+
+					"resizing. No request recommendation is offered from this sample.",
+				units.CPU(cpuReq), units.CPU(u.CPUMillis), units.Ratio(over))
+		} else {
+			proposed := units.RoundUpMilli(int64(float64(u.CPUMillis) * o.Headroom))
+			f.Detail = fmt.Sprintf(
 				"requests %s of CPU but its busiest pod uses %s (%s over-provisioned); %s would hold %s headroom",
-				units.CPU(cpuReq), units.CPU(u.CPUMillis),
-				units.Ratio(float64(cpuReq)/float64(u.CPUMillis)),
-				units.CPU(proposed), units.Ratio(o.Headroom)),
-			Recommendation: &Recommendation{
+				units.CPU(cpuReq), units.CPU(u.CPUMillis), units.Ratio(over),
+				units.CPU(proposed), units.Ratio(o.Headroom))
+			f.Recommendation = &Recommendation{
 				Field: "cpu request", Current: cpuReq, Proposed: proposed,
 				RiskBefore: s.Risk, RiskAfter: s.Risk,
-			},
-		})
+			}
+		}
+		out = append(out, f)
 	}
 
 	return out
@@ -264,4 +270,77 @@ func namespaceFindings(inv *model.Inventory) []Finding {
 		})
 	}
 	return out
+}
+
+// memOverProvisioned decides what to say about a request sitting well above
+// observed usage. There are three honest answers, and capsize picks between
+// them rather than always printing a number.
+func memOverProvisioned(w *model.Workload, s risk.Score, u model.Usage, o Options) Finding {
+	ref := w.Ref
+	memReq := w.MemRequest()
+	over := float64(memReq) / float64(u.MemBytes)
+
+	f := Finding{
+		Rule: RuleMemOverProvision, Severity: SeverityInfo,
+		Title:     "memory request far above observed usage",
+		Namespace: w.Ref.Namespace, Ref: &ref, Risk: s.Risk,
+	}
+
+	// 1. The sample says the workload is doing nothing.
+	//
+	// capsize already holds that an instant sample is a weak basis - it takes
+	// the busiest pod rather than the mean for exactly that reason. Carried one
+	// step: a reading this far below the request is not evidence that the
+	// request is wrong, it is evidence the workload was idle when
+	// metrics-server looked. A number here would be arithmetic dressed as
+	// advice, and the contradiction computed from it would make a true finding
+	// look broken by attaching an absurd multiple to it.
+	if over >= o.IdleRatio {
+		f.Title = "memory request far above observed usage (workload may be idle)"
+		f.Detail = fmt.Sprintf(
+			"requests %s of memory but its busiest pod uses %s (%s). That is more likely an idle or "+
+				"scaled-down workload than a sizing error - confirm it does work under load before "+
+				"resizing. No request recommendation is offered from this sample.",
+			units.Bytes(memReq), units.Bytes(u.MemBytes), units.Ratio(over))
+		return f
+	}
+
+	proposed := units.RoundUpMi(int64(float64(u.MemBytes) * o.Headroom))
+	floored := proposed < o.MinRequest
+	if floored {
+		proposed = o.MinRequest
+	}
+
+	// 2. The request is already as small as capsize is willing to advise: a
+	// real gap, but nothing to prescribe.
+	if proposed >= memReq {
+		f.Detail = fmt.Sprintf(
+			"requests %s of memory but its busiest pod uses %s (%s over-provisioned); the request is "+
+				"already at or below the --min-request floor of %s, so there is nothing worth changing",
+			units.Bytes(memReq), units.Bytes(u.MemBytes), units.Ratio(over), units.Bytes(o.MinRequest))
+		return f
+	}
+
+	// 3. A number worth saying out loud.
+	rec := priceRecommendation(s, "memory request", memReq, proposed, o)
+	f.Recommendation = &rec
+	if rec.IncreasesBlastRadius {
+		f.Severity = SeverityWarn
+	}
+
+	if floored {
+		f.Detail = fmt.Sprintf(
+			"requests %s of memory but its busiest pod uses %s (%s over-provisioned across %d replica(s)); "+
+				"%s of observed usage is below anything worth writing in a manifest, so the recommendation "+
+				"is the --min-request floor of %s",
+			units.Bytes(memReq), units.Bytes(u.MemBytes), units.Ratio(over), w.Replicas,
+			units.Ratio(o.Headroom), units.Bytes(proposed))
+	} else {
+		f.Detail = fmt.Sprintf(
+			"requests %s of memory but its busiest pod uses %s (%s over-provisioned across %d replica(s)); "+
+				"a request of %s would hold %s headroom",
+			units.Bytes(memReq), units.Bytes(u.MemBytes), units.Ratio(over), w.Replicas,
+			units.Bytes(proposed), units.Ratio(o.Headroom))
+	}
+	return f
 }
