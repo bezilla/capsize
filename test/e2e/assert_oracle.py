@@ -30,7 +30,7 @@ failures = []
 
 
 def check(ok, label, detail=""):
-    print(f"  {'PASS' if ok else 'FAIL'}  {label}" + (f"  [{detail}]" if detail else ""))
+    print(f"  {'PASS' if ok else 'FAIL'}  {label}" + (f"  [{detail}]" if detail and not ok else ""))
     if not ok:
         failures.append(f"{label}: {detail}")
 
@@ -91,9 +91,31 @@ def main() -> int:
           f"got {lo['risk']:.4f} with {lo['neighbors']} neighbors")
 
     print("\n=== 3. batch/spot-tenants rank #1 among fixture workloads ===")
+    #
+    # Among workloads that declare a memory request. A workload declaring none
+    # is scored against --request-floor, so its ratio is set by how large the
+    # node is rather than by anything it asked for: on a laptop-sized kind
+    # node sandbox/orphan-job scores below the spot tenants, and on a
+    # 16GB runner it scores well above them. That is capsize behaving
+    # correctly in both cases, and it makes "rank #1 overall" a property of
+    # the host rather than of the fixture.
+    #
+    # So the assertion is the part that is invariant: nothing with a measured
+    # request outranks a spot tenant. The exclusion is made on requestAssumed,
+    # not by name, so a workload that started being measured would be pulled
+    # back into the comparison automatically.
     ranked = sorted(FIXTURE, key=lambda n: -rows[n]["score"]["risk"])
-    check(ranked[0] in SPOT_TENANTS, "highest-risk fixture workload is a spot tenant",
-          f"ranking: {[(n, round(rows[n]['score']['risk'], 2)) for n in ranked[:3]]}")
+    measured = [n for n in ranked if not rows[n]["score"]["requestAssumed"]]
+    check(measured and measured[0] in SPOT_TENANTS,
+          "highest-risk workload with a declared request is a spot tenant",
+          f"ranking: {[(n, round(rows[n]['score']['risk'], 2)) for n in measured[:3]]}")
+
+    top_spot = max(rows[n]["score"]["risk"] for n in SPOT_TENANTS)
+    above = [n for n in FIXTURE if rows[n]["score"]["risk"] > top_spot]
+    check(all(rows[n]["score"]["requestAssumed"] for n in above),
+          "anything outranking the spot tenants is there on an assumed request",
+          f"outranking with a measured request: "
+          f"{[n for n in above if not rows[n]['score']['requestAssumed']]}")
     spot_risks = {round(rows[n]["score"]["risk"], 6) for n in SPOT_TENANTS}
     check(len(spot_risks) == 1, "all three spot tenants score identically",
           f"got {spot_risks}")
