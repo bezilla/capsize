@@ -25,6 +25,10 @@ type Options struct {
 	Namespace  string
 	AllNS      bool
 
+	// IncludeSystem restores provider-owned namespaces to the report. It has
+	// no effect on scoring, which always reads tenancy cluster-wide.
+	IncludeSystem bool
+
 	// Analysis tuning
 	RequestFloorStr string  // assumed memory request for a workload declaring none
 	MinRequestStr   string  // smallest memory request capsize is willing to recommend
@@ -94,6 +98,7 @@ func init() {
 	f.StringVar(&opts.Context, "context", "", "kubeconfig context to use (default: current-context)")
 	f.StringVarP(&opts.Namespace, "namespace", "n", "", "namespace to scan (default: the context's namespace)")
 	f.BoolVarP(&opts.AllNS, "all-namespaces", "A", false, "scan every namespace the caller can read")
+	f.BoolVar(&opts.IncludeSystem, "include-system", false, "report provider-owned namespaces too (kube-system, kube-public, kube-node-lease, local-path-storage); they always count as neighbours regardless")
 
 	f.StringVar(&opts.RequestFloorStr, "request-floor", "10Mi", "memory request assumed for a workload that declares none, so its ratio stays finite")
 	f.StringVar(&opts.MinRequestStr, "min-request", "32Mi", "never recommend a memory request below this; advice smaller than anyone would type is not advice")

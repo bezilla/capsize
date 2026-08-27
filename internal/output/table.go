@@ -23,6 +23,7 @@ func Table(w io.Writer, r *Report, o TableOptions) error {
 	b := &strings.Builder{}
 
 	header(b, p, r)
+	hiddenSystem(b, p, r)
 	contradictionBanner(b, p, r)
 	blastRadius(b, p, r, o.Top)
 	contradictionDetail(b, p, r)
@@ -59,6 +60,25 @@ func header(b *strings.Builder, p palette, r *Report) {
 	for _, warn := range r.Warnings {
 		fmt.Fprintf(b, "%s %s\n", p.yellow("warning:"), warn)
 	}
+}
+
+// hiddenSystem states what the default scope left out. capsize has been
+// bitten three times by output that was quietly incomplete, so this line is
+// unconditional whenever anything was hidden.
+func hiddenSystem(b *strings.Builder, p palette, r *Report) {
+	w, n := r.HiddenSystemWorkloads, r.HiddenSystemNamespaces
+	if w == 0 && n == 0 {
+		return
+	}
+	var parts []string
+	if w > 0 {
+		parts = append(parts, fmt.Sprintf("%d system workload(s)", w))
+	}
+	if n > 0 {
+		parts = append(parts, fmt.Sprintf("%d system namespace(s)", n))
+	}
+	fmt.Fprintf(b, "%s\n", p.grey(strings.Join(parts, " and ")+
+		" hidden - use --include-system to show them"))
 }
 
 func contradictionBanner(b *strings.Builder, p palette, r *Report) {

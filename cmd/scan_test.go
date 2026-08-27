@@ -133,3 +133,18 @@ func TestBothGatesReportTogether(t *testing.T) {
 		t.Errorf("both reasons should be reported, got %q", msg)
 	}
 }
+
+func TestExplicitSystemNamespaceIsHonoured(t *testing.T) {
+	// Excluded "unless asked". Asking is -n kube-system.
+	for _, ns := range []string{"kube-system", "kube-public", "local-path-storage"} {
+		if !model.SystemNamespace(ns) {
+			t.Fatalf("%s should classify as a system namespace", ns)
+		}
+	}
+	if model.SystemNamespace("") {
+		t.Error("cluster-wide scope must not be treated as a system namespace, or -A would never filter")
+	}
+	if model.SystemNamespace("prod") {
+		t.Error("prod is the user's own")
+	}
+}

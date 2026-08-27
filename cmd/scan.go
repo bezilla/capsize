@@ -11,6 +11,7 @@ import (
 	"github.com/bezilla/capsize/internal/collect"
 	"github.com/bezilla/capsize/internal/detect"
 	"github.com/bezilla/capsize/internal/k8s"
+	"github.com/bezilla/capsize/internal/model"
 	"github.com/bezilla/capsize/internal/output"
 	"github.com/bezilla/capsize/internal/risk"
 	"github.com/bezilla/capsize/internal/units"
@@ -42,7 +43,17 @@ func runScan(ctx context.Context, o *Options, out io.Writer) error {
 		return err
 	}
 
+	// Score first, against the complete inventory. Blast radius is a property
+	// of a node, so a kube-system pod counts as a neighbour whether or not the
+	// reader wants to read about it. Only after every score is fixed does the
+	// reporting scope narrow.
 	scores := risk.All(inv, risk.Options{RequestFloor: tuning.requestFloor})
+
+	var hiddenWorkloads, hiddenNamespaces int
+	if !o.IncludeSystem && !model.SystemNamespace(ns) {
+		hiddenWorkloads, hiddenNamespaces = inv.HideSystem()
+	}
+
 	findings := detect.Run(inv, scores, detect.Options{
 		Divergence: o.Divergence,
 		Headroom:   o.Headroom,
@@ -50,6 +61,8 @@ func runScan(ctx context.Context, o *Options, out io.Writer) error {
 		IdleRatio:  o.IdleRatio,
 	})
 	report := output.Build(inv, scores, findings, warnings)
+	report.HiddenSystemWorkloads = hiddenWorkloads
+	report.HiddenSystemNamespaces = hiddenNamespaces
 
 	if o.JSON {
 		if err := output.JSON(out, report); err != nil {

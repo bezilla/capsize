@@ -52,6 +52,12 @@ type Report struct {
 
 	Counts Counts `json:"counts"`
 
+	// HiddenSystemWorkloads and HiddenSystemNamespaces record what the default
+	// scope left out. They are always rendered when non-zero: a count the
+	// reader cannot see is indistinguishable from a clean scan.
+	HiddenSystemWorkloads  int `json:"hiddenSystemWorkloads,omitempty"`
+	HiddenSystemNamespaces int `json:"hiddenSystemNamespaces,omitempty"`
+
 	// MaxRisk is the highest score in the report, which is what
 	// --risk-threshold gates on.
 	MaxRisk    float64    `json:"maxRisk"`

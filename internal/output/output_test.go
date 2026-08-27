@@ -190,3 +190,80 @@ func TestJSONCarriesTheSameFacts(t *testing.T) {
 		t.Error("scores must stay finite so the JSON stays machine-readable")
 	}
 }
+
+func TestHiddenSystemCountIsAlwaysStated(t *testing.T) {
+	inv, scores, findings := fixture()
+	r := Build(inv, scores, findings, nil)
+	r.HiddenSystemWorkloads = 9
+	r.HiddenSystemNamespaces = 5
+
+	var buf bytes.Buffer
+	if err := Table(&buf, r, TableOptions{NoColor: true}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+
+	for _, want := range []string{
+		"9 system workload(s)",
+		"5 system namespace(s)",
+		"hidden - use --include-system to show them",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output is missing %q:\n%s", want, out)
+		}
+	}
+	// It has to be near the top, not buried under the tables.
+	if strings.Index(out, "hidden - use --include-system") > strings.Index(out, "BLAST RADIUS") {
+		t.Error("the hidden-count line must appear above the table, where it will be read")
+	}
+}
+
+func TestNothingHiddenMeansNoHiddenLine(t *testing.T) {
+	inv, scores, findings := fixture()
+	r := Build(inv, scores, findings, nil)
+
+	var buf bytes.Buffer
+	if err := Table(&buf, r, TableOptions{NoColor: true}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "--include-system") {
+		t.Error("a complete scan must not claim anything was hidden")
+	}
+}
+
+func TestWorkloadsOnlyHiddenCountStillReported(t *testing.T) {
+	inv, scores, findings := fixture()
+	r := Build(inv, scores, findings, nil)
+	r.HiddenSystemWorkloads = 2
+
+	var buf bytes.Buffer
+	if err := Table(&buf, r, TableOptions{NoColor: true}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "2 system workload(s) hidden") {
+		t.Errorf("expected a workload-only hidden line:\n%s", out)
+	}
+	if strings.Contains(out, "namespace(s)") {
+		t.Error("must not report zero hidden namespaces as if some were hidden")
+	}
+}
+
+func TestHiddenCountsSurviveIntoJSON(t *testing.T) {
+	inv, scores, findings := fixture()
+	r := Build(inv, scores, findings, nil)
+	r.HiddenSystemWorkloads = 9
+	r.HiddenSystemNamespaces = 5
+
+	var buf bytes.Buffer
+	if err := JSON(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	var back Report
+	if err := json.Unmarshal(buf.Bytes(), &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.HiddenSystemWorkloads != 9 || back.HiddenSystemNamespaces != 5 {
+		t.Errorf("hidden counts lost in JSON: %d/%d", back.HiddenSystemWorkloads, back.HiddenSystemNamespaces)
+	}
+}
