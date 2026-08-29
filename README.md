@@ -201,6 +201,10 @@ That fixture caught a genuine defect the unit tests could not: capsize read cont
 - **Phase 1.5.** Scheduling-aware neighbors · `--explain <workload>` to print the formula with this workload's numbers substituted, because a score is only useful if it can be argued with · `--since` window over metrics · `--baseline` diff so CI fails on newly introduced risk rather than pre-existing debt.
 - **Phase 2 — cost.** Public AWS pricing join. Waste priced, exposure priced, and every cost recommendation that raises blast radius called out in dollars.
 
+## Related
+
+- [terragrunt-reference-architecture](https://github.com/bezilla/terragrunt-reference-architecture) — a sanitized OpenTofu + Terragrunt reference architecture (EKS, Aurora, CloudFront/WAF, keyless CI) — the kind of platform capsize is built to inspect.
+
 ## License
 
 MIT.
