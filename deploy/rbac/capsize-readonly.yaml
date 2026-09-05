@@ -1,0 +1,85 @@
+# capsize's complete permission set.
+#
+# Every rule below corresponds to a call site in internal/k8s/client.go, and
+# there is no call site without a rule. The verb is `list` and only `list`:
+# capsize issues no GET-by-name and opens no watch, so granting `get` or
+# `watch` would widen the role past anything the binary can use. The one
+# exception is the discovery URL at the bottom, which is a non-resource GET.
+#
+# Bind it read-only and cluster-wide:
+#
+#   kubectl apply -f deploy/rbac/capsize-readonly.yaml
+#   kubectl create clusterrolebinding capsize \
+#     --clusterrole=capsize-readonly --user="$(whoami)"
+#
+# Confirm it is enough, without running capsize:
+#
+#   kubectl auth can-i list nodes --as="$(whoami)"
+#   kubectl auth can-i list pods --all-namespaces --as="$(whoami)"
+#
+# A narrower binding is supported and degrades in documented ways rather than
+# failing; see docs/rbac.md for exactly what each missing permission costs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capsize-readonly
+  labels:
+    app.kubernetes.io/name: capsize
+    app.kubernetes.io/component: rbac
+rules:
+  # Nodes: allocatable memory is the ceiling term of the blast-radius score,
+  # and the node's labels are how spot capacity is detected. Cluster-scoped,
+  # so this rule cannot be narrowed to a namespace.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list"]
+
+  # Pods: tenancy. Read cluster-wide even for a single-namespace scan, because
+  # a neighbor in kube-system OOMs you exactly as dead as one in your own
+  # namespace.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+
+  # Namespaces: the guardrail check covers every namespace, including empty
+  # ones - a namespace with no LimitRange is a hole whether or not anything
+  # has fallen through it yet.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list"]
+
+  # LimitRanges and ResourceQuotas: the CAP201 guardrail check itself.
+  - apiGroups: [""]
+    resources: ["limitranges", "resourcequotas"]
+    verbs: ["list"]
+
+  # Workload controllers. capsize enumerates workloads from their controllers
+  # rather than from running pods, so a deployment scaled to zero - a common
+  # home for a bad request template nobody has noticed - is still scored.
+  # replicasets are read only to resolve Pod -> ReplicaSet -> Deployment.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["list"]
+
+  # jobs are read only to resolve Pod -> Job -> CronJob.
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["list"]
+
+  # Observed usage. Without this capsize still reports every static finding
+  # and every blast-radius score; it loses only the request-versus-usage rules
+  # and, with them, the contradiction that depends on a rightsizing.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["list"]
+
+  # capsize asks whether metrics.k8s.io is registered before reading from it,
+  # so it can say "metrics-server is not installed" instead of failing. That
+  # probe is a GET on a non-resource URL.
+  #
+  # Most clusters already grant this to every authenticated user through the
+  # built-in system:discovery role, so this rule is usually redundant. It is
+  # listed anyway: a role that is complete only because of a default somewhere
+  # else is not a role an operator can evaluate.
+  - nonResourceURLs: ["/apis/metrics.k8s.io/v1beta1"]
+    verbs: ["get"]
