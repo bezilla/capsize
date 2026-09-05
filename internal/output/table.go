@@ -205,6 +205,10 @@ func writeGrid(b *strings.Builder, p palette, cols []string, rows [][]string) {
 	}
 }
 
+// contradictionDetail prints CAP301 in the same severity/rule/subject shape as
+// every other finding. It has to: a contradiction is counted in the summary's
+// severity tally, so if it were the only finding rendered without a severity
+// tag the tally would name more criticals than the reader can see.
 func contradictionDetail(b *strings.Builder, p palette, r *Report) {
 	cs := r.Contradictions()
 	if len(cs) == 0 {
@@ -212,7 +216,8 @@ func contradictionDetail(b *strings.Builder, p palette, r *Report) {
 	}
 	section(b, p, fmt.Sprintf("contradictions (%d)", len(cs)))
 	for _, f := range cs {
-		fmt.Fprintf(b, "  %s %s\n", p.red(p.bold(f.Ref.Short())),
+		fmt.Fprintf(b, "  %s %s  %s  %s\n",
+			severityTag(p, f.Severity), p.gray(f.Rule), p.red(p.bold(f.Ref.Short())),
 			p.gray(fmt.Sprintf("(%s, risk %s)", f.Ref.Kind, units.Score(f.Risk))))
 		wrapInto(b, f.Detail, "    ", 88)
 	}
@@ -230,7 +235,15 @@ func findings(b *strings.Builder, p palette, r *Report) {
 	if len(rest) == 0 {
 		return
 	}
-	section(b, p, fmt.Sprintf("findings (%d)", len(rest)))
+	// The heading reconciles with the summary's total. Printing "findings (8)"
+	// above a summary that says "9 finding(s)" reads as a stale capture on a
+	// tool whose whole premise is that its numbers can be trusted.
+	title := fmt.Sprintf("findings (%d)", len(rest))
+	if n := len(r.Contradictions()); n > 0 {
+		title = fmt.Sprintf("findings (%d of %d; %d listed above under contradictions)",
+			len(rest), r.Counts.Total(), n)
+	}
+	section(b, p, title)
 	for _, f := range rest {
 		subject := f.Namespace
 		if f.Ref != nil {

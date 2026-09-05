@@ -3,6 +3,8 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -302,5 +304,104 @@ func TestJSONUsesAmericanSpelling(t *testing.T) {
 	}
 	if !found {
 		t.Error("no row round-tripped a non-zero neighbor count; the rename lost the value")
+	}
+}
+
+// countRenderedSeverities parses the rendered report back into a severity
+// tally, reading only what a human can actually see on the screen.
+func countRenderedSeverities(out string) Counts {
+	var c Counts
+	// Every finding line, in both the CONTRADICTIONS and FINDINGS sections,
+	// is "  <severity> <rule>  <subject>  <title>".
+	re := regexp.MustCompile(`(?m)^  (critical|warn|info) +(CAP\d+) `)
+	for _, m := range re.FindAllStringSubmatch(out, -1) {
+		switch m[1] {
+		case "critical":
+			c.Critical++
+		case "warn":
+			c.Warn++
+		default:
+			c.Info++
+		}
+	}
+	return c
+}
+
+// TestRenderedSeveritiesMatchTheSummary is the regression guard for a printed
+// contradiction: the summary counted CAP301 in its severity tally while the
+// FINDINGS list deliberately excluded it, so the output claimed more criticals
+// than it showed and a larger total than it listed. On a tool that asks to be
+// trusted on scoring, arithmetic the reader cannot reproduce is a bug.
+func TestRenderedSeveritiesMatchTheSummary(t *testing.T) {
+	inv, scores, findings := fixture()
+	r := Build(inv, scores, findings, nil)
+	want := r.Counts
+
+	var buf bytes.Buffer
+	if err := Table(&buf, r, TableOptions{NoColor: true}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+
+	// The fixture has to actually contain a contradiction, or this test would
+	// pass vacuously on the one arrangement it exists to check.
+	if len(r.Contradictions()) == 0 {
+		t.Fatal("fixture must produce a contradiction for this test to mean anything")
+	}
+
+	if got := countRenderedSeverities(out); got != want {
+		t.Errorf("the summary says %d critical / %d warn / %d info, "+
+			"but the output shows %d / %d / %d:\n%s",
+			want.Critical, want.Warn, want.Info,
+			got.Critical, got.Warn, got.Info, out)
+	}
+}
+
+// TestFindingsHeadingReconcilesWithTheTotal checks the other half: the
+// FINDINGS heading lists fewer findings than the summary totals, and it has to
+// say so rather than leaving the reader to spot the gap.
+func TestFindingsHeadingReconcilesWithTheTotal(t *testing.T) {
+	inv, scores, findings := fixture()
+	r := Build(inv, scores, findings, nil)
+
+	var buf bytes.Buffer
+	if err := Table(&buf, r, TableOptions{NoColor: true}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+
+	listed := r.Counts.Total() - len(r.Contradictions())
+	want := fmt.Sprintf("FINDINGS (%d OF %d; %d LISTED ABOVE UNDER CONTRADICTIONS)",
+		listed, r.Counts.Total(), len(r.Contradictions()))
+	if !strings.Contains(out, want) {
+		t.Errorf("expected heading %q:\n%s", want, out)
+	}
+	if strings.Contains(out, fmt.Sprintf("FINDINGS (%d)\n", listed)) {
+		t.Error("a bare count in the heading contradicts the summary total")
+	}
+}
+
+// TestFindingsHeadingIsPlainWithoutContradictions keeps the reconciling text
+// from becoming noise on the ordinary path, where the two counts agree.
+func TestFindingsHeadingIsPlainWithoutContradictions(t *testing.T) {
+	inv, _, _ := fixture()
+	inv.MetricsAvailable = false
+	inv.Usage = nil
+	scores := risk.All(inv, risk.Options{RequestFloor: 10 * units.Mi})
+	r := Build(inv, scores, detect.Run(inv, scores, detect.Options{}), nil)
+
+	var buf bytes.Buffer
+	if err := Table(&buf, r, TableOptions{NoColor: true}); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if len(r.Contradictions()) != 0 {
+		t.Fatal("this fixture is supposed to have no contradiction")
+	}
+	if !strings.Contains(out, fmt.Sprintf("FINDINGS (%d)", r.Counts.Total())) {
+		t.Errorf("with nothing hidden the heading should be a bare count:\n%s", out)
+	}
+	if got := countRenderedSeverities(out); got != r.Counts {
+		t.Errorf("severity tally still has to match: summary %+v, rendered %+v\n%s", r.Counts, got, out)
 	}
 }
