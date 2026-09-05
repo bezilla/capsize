@@ -34,9 +34,15 @@ trap 'rm -f "$RAW" "$RAW".txt' EXIT
 # Every one of them must appear in the capture; that is the invariant this
 # script exists to hold. Add a figure here when you quote one in prose.
 PROSE_FIGURES=(
-  # README, "The idea in one output block" and "Why the two axes fight"
-  "12.2" "122.6" "128.9" "512Mi" "51Mi" "461Mi" "2.6Gi"
-  # DESIGN.md section 9, the effective-resources worked example
+  # README, "The idea in one output block": the contradiction, verbatim.
+  "21.3" "213.9" "512Mi" "51Mi" "461Mi" "40.4Mi" "4.6Gi"
+  # README, the ranking sentence under the table.
+  "685.1"
+  # README, the caption under docs/images/two-axes.svg, which names the host.
+  "2.6Gi"
+  # DESIGN.md section 9. 237.77 is deliberately absent: it is the score
+  # capsize produced BEFORE effective-resource defaulting and cannot appear in
+  # a correct capture. The section derives it from 2.32, which is here.
   "2.32"
 )
 

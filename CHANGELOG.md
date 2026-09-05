@@ -36,6 +36,10 @@ JSON schemaVersion: **1.0.0** (first versioned shape).
   `list` only, one rule per call site. `docs/rbac.md` says what each missing
   permission costs, and `TestEveryDeniedReadIsReported` holds that table to
   the code.
+- The README's terminal block, `docs/scan.svg` and every figure quoted in
+  prose are re-captured from one run and now show the reconciled output. The
+  absolute scores changed with the host they were captured on, which is the
+  point the caption now makes explicitly.
 - `docs/capture.sh`, which regenerates `docs/scan.svg`, `docs/scan.txt` and
   the README's terminal block from **one** capsize run. `--check` runs in CI
   and fails if the picture, the text and the figures quoted in prose stop

@@ -19,14 +19,14 @@ That's what this does.
 ## The idea in one output block
 
 ```
-sandbox/overprovisioned-cache (Deployment, risk 12.2)
+critical CAP301  sandbox/overprovisioned-cache  (Deployment, risk 21.3)
   cutting the memory request from 512Mi to 51Mi releases 461Mi per pod but raises blast
-  radius 10x (12.2 -> 122.6): with no memory limit set, the request is the only number
-  holding this workload below 2.6Gi of allocatable memory on capsize-worker2, which it
+  radius 10x (21.3 -> 213.9): with no memory limit set, the request is the only number
+  holding this workload below 4.6Gi of allocatable memory on capsize-worker2, which it
   shares with 4 other workloads. Do this first: set a memory limit.
 ```
 
-Both halves are true. The savings are real — that workload requests 512Mi and uses 40Mi. And acting on them, alone, makes an outage more likely, because the request is the only thing keeping an unbounded container off the rest of the node.
+Both halves are true. The savings are real — that workload requests 512Mi and uses 40.4Mi. And acting on them, alone, makes an outage more likely, because the request is the only thing keeping an unbounded container off the rest of the node.
 
 Cost optimization and blast-radius containment can pull in **opposite directions**. Every tool in this category treats them as one axis. capsize scores both and names the disagreement.
 
@@ -75,30 +75,30 @@ usage data: metrics-server
 ! 1 cost recommendation(s) here would increase blast radius
 
 BLAST RADIUS
-  RISK   RATIO  NBRS  SPOT  CEILING   REQUEST  KIND        WORKLOAD                       NODE             FLAGS
-  128.9  64x    3     -     644.4Mi*  ~10Mi    Deployment  sandbox/orphan-job             capsize-worker   2 finding(s)
-  12.2   5.3x   4     -     2.6Gi*    512Mi    Deployment  sandbox/overprovisioned-cache  capsize-worker2  contradiction 3 finding(s)
-  5.03   2.5x   3     -     644.4Mi*  256Mi    Deployment  sandbox/legacy-worker          capsize-worker   1 finding(s)
-  2.32   1.0x   4     -     1Gi       1Gi      Deployment  sandbox/limits-only            capsize-worker2  2 finding(s)
+  RISK   RATIO  NBRS  SPOT  CEILING  REQUEST  KIND        WORKLOAD                       NODE             FLAGS
+  685.1  265x   5     -     2.6Gi*   ~10Mi    Deployment  sandbox/orphan-job             capsize-worker   2 finding(s)
+  26.8   10x    5     -     2.6Gi*   256Mi    Deployment  sandbox/legacy-worker          capsize-worker   1 finding(s)
+  21.3   9.2x   4     -     4.6Gi*   512Mi    Deployment  sandbox/overprovisioned-cache  capsize-worker2  contradiction 3 finding(s)
+  2.32   1.0x   4     -     1Gi      1Gi      Deployment  sandbox/limits-only            capsize-worker2  2 finding(s)
 
 CONTRADICTIONS (1)
-  sandbox/overprovisioned-cache (Deployment, risk 12.2)
+  critical CAP301  sandbox/overprovisioned-cache  (Deployment, risk 21.3)
     cutting the memory request from 512Mi to 51Mi releases 461Mi per pod but raises blast
-    radius 10x (12.2 -> 122.6): with no memory limit set, the request is the only number
-    holding this workload below 2.6Gi of allocatable memory on capsize-worker2, which it
+    radius 10x (21.3 -> 213.9): with no memory limit set, the request is the only number
+    holding this workload below 4.6Gi of allocatable memory on capsize-worker2, which it
     shares with 4 other workload(s). Do this first: set a memory limit (nothing currently
-    bounds this below 2.6Gi of node capsize-worker2).
+    bounds this below 4.6Gi of node capsize-worker2).
 
-FINDINGS (8)
+FINDINGS (8 OF 9; 1 LISTED ABOVE UNDER CONTRADICTIONS)
   critical CAP102  sandbox/orphan-job/app  no resource limits
     declares no CPU or memory limit, so its memory ceiling is the whole of capsize-worker
-    (644.4Mi) and it shares that node with 3 other workload(s)
-  critical CAP102  sandbox/overprovisioned-cache/app  no resource limits
-    declares no CPU or memory limit, so its memory ceiling is the whole of capsize-worker2
-    (2.6Gi) and it shares that node with 4 other workload(s)
+    (2.6Gi) and it shares that node with 5 other workload(s)
   critical CAP102  sandbox/legacy-worker/app  no resource limits
     declares no CPU or memory limit, so its memory ceiling is the whole of capsize-worker
-    (644.4Mi) and it shares that node with 3 other workload(s)
+    (2.6Gi) and it shares that node with 5 other workload(s)
+  critical CAP102  sandbox/overprovisioned-cache/app  no resource limits
+    declares no CPU or memory limit, so its memory ceiling is the whole of capsize-worker2
+    (4.6Gi) and it shares that node with 4 other workload(s)
   warn     CAP101  sandbox/orphan-job/app  no resource requests
     declares neither requests nor limits, so the scheduler treats it as free and packs it
     onto any node with room; the pod is BestEffort and is evicted first
@@ -118,10 +118,12 @@ FINDINGS (8)
     limit: the scheduler reserves 1 and this pod is Guaranteed. Spell out requests.cpu: 1 so
     the reservation cannot move silently when someone edits the limit
 
+NAMESPACES WITH NO LIMITRANGE AND NO RESOURCEQUOTA (1)
+  sandbox (4 workload(s) admitted with no defaults and no cap)
+
 SUMMARY
-  4 workload(s) scored; 9 finding(s): 4 critical, 3 warn, 2 info, 1 of which is a cost fix
-  that raises blast radius
-  highest blast radius: 128.9 (sandbox/orphan-job)
+  4 workload(s) scored; 9 finding(s): 4 critical, 3 warn, 2 info, 1 of which is a cost fix that raises blast radius
+  highest blast radius: 685.1 (sandbox/orphan-job)
   * ceiling is the node's allocatable memory because no container limit bounds it
 ```
 
@@ -129,16 +131,22 @@ SUMMARY
 
 </details>
 
-`orphan-job` outranks `overprovisioned-cache` ten to one, and that is the point. It declares nothing at all, so it is scored against `--request-floor` on the tightest node in the cluster — the scheduler treats it as free, packs it anywhere, and nothing caps what it can take. The workload that *looks* wasteful is the third-riskiest thing here.
+`orphan-job` outranks `overprovisioned-cache` thirty to one, and that is the point. It declares nothing at all, so it is scored against `--request-floor` on the tightest node in the cluster — the scheduler treats it as free, packs it anywhere, and nothing caps what it can take. The workload that *looks* wasteful is the third-riskiest thing here.
 
 ## Why the two axes fight
 
 ![Why the two axes fight: a workload requesting 512Mi, using 40Mi and setting no memory limit, so its ceiling is the whole node; cutting the request to 51Mi releases 461Mi per pod and, because the ceiling is unchanged, multiplies the ceiling-to-request ratio and the blast-radius score by ten; setting a memory limit first collapses the ceiling to the limit, after which the request is safe to cut](docs/images/two-axes.svg)
 
 *One edit, two true consequences. The `×10` is the invariant part — the ratio is linear in the
-request, so dividing the request by ten multiplies blast radius by ten on any cluster. The absolute
-scores quoted on this page come from the captured run in [`docs/scan.svg`](docs/scan.svg); they scale
-with node allocatable, which is why the end-to-end oracle asserts orderings and ratios instead.*
+request, so dividing the request by ten multiplies blast radius by ten on any cluster, and so is the
+ordering: an unbounded workload outranks a bounded one wherever you run this.*
+
+*Every absolute score on this page comes from one run, regenerated by
+[`docs/capture.sh`](docs/capture.sh) — the [four-node `kind`
+fixture](https://github.com/bezilla/capsize-fixture) on a Docker VM with 5.78Gi of memory, which
+gives `capsize-worker` 2.6Gi of allocatable and `capsize-worker2` 4.6Gi. On a bigger host every one
+of those numbers is larger and none of the conclusions change; that is why the end-to-end oracle
+asserts orderings and ratios and never a fixed score.*
 
 The savings are real — 461Mi per pod. Acting on them alone makes an outage more likely, because with no limit set the *request* is the only number holding that container below the node ceiling. Cut it and you have both freed the scheduler to pack more neighbors in **and** left the workload free to take everything.
 

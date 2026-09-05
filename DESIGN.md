@@ -143,12 +143,22 @@ admission plugin — and it is invisible in the `PodTemplateSpec`.
 capsize originally read the template verbatim. A workload declaring
 `limits: {memory: 1Gi, cpu: "1"}` and no requests was scored as though it had
 no reservation at all: the request fell back to `--request-floor`, giving a
-ratio of 1Gi/10Mi and a risk of **237.77**, second riskiest of sixteen
-workloads in my test cluster.
+ratio of 1Gi/10Mi and a risk two orders of magnitude too high, second riskiest
+of sixteen workloads in my test cluster.
 
 The cluster's own view of that pod was `Guaranteed` — requests defaulted to
 the limits, the full 1Gi reserved, the *least* evictable QoS class there is.
-Its true score is **2.32**, which ranks it last.
+
+`sandbox/limits-only` in the fixture is that workload, and the arithmetic is
+checkable against the captured run in the README. Its true score is **2.32**:
+ratio exactly 1.0, four neighbors, `log2(1 + 4) = 2.3219`. It ranks last.
+Scored the old way the ratio would have been `1Gi / 10Mi = 102.4`, for
+`102.4 × 2.3219 = 237.77` — the same 102x error on any host, because the two
+scores share every term but the denominator.
+
+That is worth stating precisely because it is the one figure on these pages
+that is *not* in the capture: capsize cannot print it any more. It is derived
+from numbers that are.
 
 Every unit test was green throughout. They asserted on a model state that a
 real cluster never produces. That is the failure mode: not a wrong assertion,
