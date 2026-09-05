@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/bezilla/capsize/internal/buildinfo"
 )
 
 // restore puts the build-metadata globals back after a test mutates them.
 func restore(t *testing.T) {
 	t.Helper()
-	v, c, d := version, commit, date
-	t.Cleanup(func() { version, commit, date = v, c, d })
+	v, c, d := buildinfo.Version, buildinfo.Commit, buildinfo.Date
+	t.Cleanup(func() { buildinfo.Version, buildinfo.Commit, buildinfo.Date = v, c, d })
 }
 
 func runVersion(t *testing.T) string {
@@ -24,7 +26,7 @@ func runVersion(t *testing.T) string {
 
 func TestVersionReportsInjectedLdflags(t *testing.T) {
 	restore(t)
-	version, commit, date = "v0.1.0", "abc1234", "2026-08-27T12:00:00Z"
+	buildinfo.Version, buildinfo.Commit, buildinfo.Date = "v0.1.0", "abc1234", "2026-08-27T12:00:00Z"
 
 	out := runVersion(t)
 	for _, want := range []string{"capsize v0.1.0", "abc1234", "2026-08-27T12:00:00Z"} {
@@ -39,7 +41,7 @@ func TestVersionReportsInjectedLdflags(t *testing.T) {
 
 func TestVersionOmitsEmptyBuildMetadata(t *testing.T) {
 	restore(t)
-	version, commit, date = "v0.1.0", "", ""
+	buildinfo.Version, buildinfo.Commit, buildinfo.Date = "v0.1.0", "", ""
 
 	out := runVersion(t)
 	if strings.Contains(out, "commit:") || strings.Contains(out, "built:") {
@@ -50,12 +52,12 @@ func TestVersionOmitsEmptyBuildMetadata(t *testing.T) {
 	}
 }
 
-func TestResolveVersionFallsBackToDev(t *testing.T) {
+func TestResolveFallsBackToDev(t *testing.T) {
 	restore(t)
-	version = "dev"
+	buildinfo.Version = "dev"
 	// Under `go test` there is no module version to read, so this exercises
 	// the final fallback.
-	if got := resolveVersion(); got == "" {
-		t.Fatal("resolveVersion must never return empty")
+	if got := buildinfo.Resolve(); got == "" {
+		t.Fatal("buildinfo.Resolve must never return empty")
 	}
 }

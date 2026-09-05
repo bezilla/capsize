@@ -5,11 +5,26 @@ package output
 
 import (
 	"sort"
+	"time"
 
+	"github.com/bezilla/capsize/internal/buildinfo"
 	"github.com/bezilla/capsize/internal/detect"
 	"github.com/bezilla/capsize/internal/model"
 	"github.com/bezilla/capsize/internal/risk"
 )
+
+// SchemaVersion is the version of the --json document shape, independent of
+// the capsize release that produced it. See docs/json-contract.md for what a
+// consumer may rely on and what each component of the number means.
+//
+// A change to this constant without a corresponding change to
+// internal/output/testdata/schema-<version>.json fails TestJSONContract, and
+// vice versa. That is the whole point of it.
+const SchemaVersion = "1.0.0"
+
+// now is the clock Build stamps GeneratedAt from. A test replaces it; nothing
+// else should.
+var now = time.Now
 
 // Row is one workload as it appears in the blast-radius table.
 type Row struct {
@@ -35,7 +50,15 @@ type Counts struct {
 func (c Counts) Total() int { return c.Critical + c.Warn + c.Info }
 
 // Report is the complete result of one scan.
+//
+// The first three fields are the envelope: they say what this document is,
+// what produced it and when, so a consumer that stored a report last quarter
+// can tell whether it is still reading the shape it was written against.
 type Report struct {
+	SchemaVersion string    `json:"schemaVersion"`
+	ToolVersion   string    `json:"toolVersion"`
+	GeneratedAt   time.Time `json:"generatedAt"`
+
 	Context string `json:"context"`
 	Scope   string `json:"scope"`
 
@@ -74,6 +97,9 @@ type Report struct {
 // order the table prints and the order the JSON carries.
 func Build(inv *model.Inventory, scores map[model.Ref]risk.Score, findings []detect.Finding, warnings []string) *Report {
 	r := &Report{
+		SchemaVersion:    SchemaVersion,
+		ToolVersion:      buildinfo.Resolve(),
+		GeneratedAt:      now().UTC(),
 		Context:          inv.Context,
 		Scope:            inv.Scope,
 		MetricsAvailable: inv.MetricsAvailable,

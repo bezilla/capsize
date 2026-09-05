@@ -35,9 +35,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/bezilla/capsize/cmd.version={{ .Version }}
-      - -X github.com/bezilla/capsize/cmd.commit={{ .FullCommit }}
-      - -X github.com/bezilla/capsize/cmd.date={{ .Date }}
+      - -X github.com/bezilla/capsize/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/bezilla/capsize/internal/buildinfo.Commit={{ .FullCommit }}
+      - -X github.com/bezilla/capsize/internal/buildinfo.Date={{ .Date }}
 
 archives:
   - id: capsize
