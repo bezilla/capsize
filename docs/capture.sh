@@ -24,7 +24,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 NAMESPACE="${CAPSIZE_NS:-sandbox}"
-RAW="$(mktemp -t capsize-capture)"
+# Spelled out rather than `mktemp -t`: BSD mktemp treats the argument as a
+# prefix, GNU requires a template ending in X's, and the two disagree about
+# what -t means. This form is identical on both.
+RAW="$(mktemp "${TMPDIR:-/tmp}/capsize-capture.XXXXXX")"
 trap 'rm -f "$RAW" "$RAW".txt' EXIT
 
 # Figures quoted in README.md and DESIGN.md prose, outside the captured block.
@@ -51,14 +54,43 @@ $check_only || { need freeze; need go; }
 #
 # Through a pty, because capsize emits no color when its stdout is not a
 # terminal - the SVG would be a grey wall otherwise.
+#
+# python3 rather than script(1): script needs a controlling terminal on its
+# own stdin, which it does not have under CI or any other non-interactive
+# runner, and the two platforms spell its arguments differently. This has no
+# BSD/GNU split and needs no tty of its own.
 capture() {
   go build -o ./capsize .
-  if [[ "$(uname)" == "Darwin" ]]; then
-    script -q /dev/null ./capsize -n "$NAMESPACE" > "$RAW"
-  else
-    script -qec "./capsize -n $NAMESPACE" /dev/null > "$RAW"
-  fi
-  # script(1) leaves CRs behind on both platforms.
+  python3 - "$RAW" "$NAMESPACE" <<'PYCAP'
+import fcntl, os, pty, struct, sys, termios
+
+out, namespace = sys.argv[1], sys.argv[2]
+
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp("./capsize", ["./capsize", "-n", namespace])
+
+# Wide enough that nothing capsize prints could be folded by a terminal that
+# assumed 80 columns.
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 60, 200, 0, 0))
+
+with open(out, "wb") as f:
+    try:
+        while True:
+            data = os.read(fd, 4096)
+            if not data:
+                break
+            f.write(data)
+    except OSError:
+        pass            # the child closed the pty; that is how this ends
+
+_, status = os.waitpid(pid, 0)
+code = os.waitstatus_to_exitcode(status)
+# capsize exits 2 when a threshold is crossed, which is a successful scan.
+if code not in (0, 2):
+    sys.exit("capsize exited %d" % code)
+PYCAP
+  # The line discipline turns every \n into \r\n on the way out.
   perl -pi -e 's/\r$//' "$RAW"
   # The text equivalent is the same bytes with the escapes removed.
   perl -pe 's/\e\[[0-9;]*m//g' "$RAW" > "$RAW".txt
