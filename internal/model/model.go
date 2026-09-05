@@ -233,12 +233,24 @@ type Namespace struct {
 	LimitRanges    []string `json:"limitRanges"`
 	ResourceQuotas []string `json:"resourceQuotas"`
 	Workloads      int      `json:"workloads"`
+
+	// GuardrailsUnknown marks a namespace whose LimitRange or ResourceQuota
+	// list could not be read. It is not serialized because a namespace in this
+	// state never reaches the report: "I was not allowed to look" and "there is
+	// nothing there" are different answers, and only the second one is a
+	// finding.
+	GuardrailsUnknown bool `json:"-"`
 }
 
 // Ungoverned reports a namespace that constrains nothing: any pod admitted
 // here may request nothing and consume everything.
+//
+// A namespace whose guardrail reads were denied is never ungoverned, however
+// empty its lists look. Reporting one as ungoverned would turn an RBAC gap
+// into a fabricated critical finding, which is the failure mode this tool
+// exists to avoid rather than commit.
 func (n *Namespace) Ungoverned() bool {
-	return len(n.LimitRanges) == 0 && len(n.ResourceQuotas) == 0
+	return !n.GuardrailsUnknown && len(n.LimitRanges) == 0 && len(n.ResourceQuotas) == 0
 }
 
 // Inventory is everything one scan read from the cluster.

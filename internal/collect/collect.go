@@ -129,8 +129,8 @@ func Collect(ctx context.Context, r Reader, o Options) (*model.Inventory, []stri
 		}
 	} else {
 		warnings = append(warnings, fmt.Sprintf(
-			"cannot list replicasets (%v) - pods will be attributed to their replicaset "+
-				"rather than their deployment", rootCause(err)))
+			"cannot list replicasets (%v) - deployment-owned pods will be attributed to "+
+				"themselves as uncontrolled Pods rather than to their deployment", rootCause(err)))
 	}
 	if jobs, err := r.Jobs(ctx, ownerNS); err == nil {
 		for i := range jobs {
@@ -138,6 +138,10 @@ func Collect(ctx context.Context, r Reader, o Options) (*model.Inventory, []stri
 				jobOwner[jobs[i].Namespace+"/"+jobs[i].Name] = c.Name
 			}
 		}
+	} else {
+		warnings = append(warnings, fmt.Sprintf(
+			"cannot list jobs (%v) - cronjob-owned pods will be attributed to their job "+
+				"rather than to their cronjob", rootCause(err)))
 	}
 
 	podRef := map[string]model.Ref{} // "ns/pod" -> owning workload
@@ -213,6 +217,8 @@ func Collect(ctx context.Context, r Reader, o Options) (*model.Inventory, []stri
 				model.Ref{Kind: model.KindCronJob, Namespace: c.Namespace, Name: c.Name},
 				1, c.Spec.JobTemplate.Spec.Template.Spec, nodesFor, podsFor))
 		}
+	} else {
+		warnings = append(warnings, fmt.Sprintf("cannot list cronjobs (%v)", rootCause(err)))
 	}
 
 	// Uncontrolled pods and standalone Jobs have no template to read, so their
@@ -242,19 +248,45 @@ func Collect(ctx context.Context, r Reader, o Options) (*model.Inventory, []stri
 	for _, w := range inv.Workloads {
 		counts[w.Ref.Namespace]++
 	}
+	// A denied guardrail read is not an absent guardrail. Namespaces whose
+	// LimitRange or ResourceQuota list could not be read are marked, so CAP201
+	// stays silent about them, and the gap is reported once rather than as a
+	// warning per namespace.
+	var unreadable []string
+	var firstDenial string
 	for _, name := range nsNames {
 		ns := &model.Namespace{Name: name, Workloads: counts[name]}
 		if lrs, err := r.LimitRanges(ctx, name); err == nil {
 			for i := range lrs {
 				ns.LimitRanges = append(ns.LimitRanges, lrs[i].Name)
 			}
+		} else {
+			ns.GuardrailsUnknown = true
+			if firstDenial == "" {
+				firstDenial = rootCause(err)
+			}
 		}
 		if rqs, err := r.ResourceQuotas(ctx, name); err == nil {
 			for i := range rqs {
 				ns.ResourceQuotas = append(ns.ResourceQuotas, rqs[i].Name)
 			}
+		} else {
+			ns.GuardrailsUnknown = true
+			if firstDenial == "" {
+				firstDenial = rootCause(err)
+			}
+		}
+		if ns.GuardrailsUnknown {
+			unreadable = append(unreadable, name)
 		}
 		inv.Namespaces = append(inv.Namespaces, ns)
+	}
+	if len(unreadable) > 0 {
+		warnings = append(warnings, fmt.Sprintf(
+			"cannot read limitranges or resourcequotas in %d namespace(s) (%v) - %s "+
+				"%s excluded from the guardrail check rather than reported as ungoverned",
+			len(unreadable), firstDenial, strings.Join(elide(unreadable, 3), ", "),
+			plural(len(unreadable), "is", "are")))
 	}
 
 	// --- observed usage ---------------------------------------------------
@@ -457,6 +489,22 @@ func milliQuantity(list corev1.ResourceList, name corev1.ResourceName) int64 {
 		return q.MilliValue()
 	}
 	return 0
+}
+
+// elide keeps a warning to one line when a scan covers hundreds of namespaces.
+func elide(names []string, limit int) []string {
+	if len(names) <= limit {
+		return names
+	}
+	return append(append([]string{}, names[:limit]...),
+		fmt.Sprintf("and %d more", len(names)-limit))
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // rootCause trims the multi-line RBAC errors the API server returns so a

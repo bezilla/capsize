@@ -3,6 +3,7 @@ package collect
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,13 +36,20 @@ type fakeReader struct {
 	metricsUp  bool
 	nodesErr   error
 	allPodsErr error
+	limitsErr  error
+	quotasErr  error
+	nsErr      error
+	jobsErr    error
+	cronjobErr error
+	rsErr      error
+	metricsErr error
 }
 
 func (f *fakeReader) Nodes(context.Context) ([]corev1.Node, error) {
 	return f.nodes, f.nodesErr
 }
 func (f *fakeReader) Namespaces(context.Context) ([]corev1.Namespace, error) {
-	return f.namespaces, nil
+	return f.namespaces, f.nsErr
 }
 func (f *fakeReader) Pods(_ context.Context, ns string) ([]corev1.Pod, error) {
 	if ns == "" && f.allPodsErr != nil {
@@ -59,18 +67,33 @@ func (f *fakeReader) DaemonSets(_ context.Context, ns string) ([]appsv1.DaemonSe
 	return filter(f.dss, ns, func(d appsv1.DaemonSet) string { return d.Namespace }), nil
 }
 func (f *fakeReader) ReplicaSets(_ context.Context, ns string) ([]appsv1.ReplicaSet, error) {
+	if f.rsErr != nil {
+		return nil, f.rsErr
+	}
 	return filter(f.rss, ns, func(r appsv1.ReplicaSet) string { return r.Namespace }), nil
 }
 func (f *fakeReader) Jobs(_ context.Context, ns string) ([]batchv1.Job, error) {
+	if f.jobsErr != nil {
+		return nil, f.jobsErr
+	}
 	return filter(f.jobs, ns, func(j batchv1.Job) string { return j.Namespace }), nil
 }
 func (f *fakeReader) CronJobs(_ context.Context, ns string) ([]batchv1.CronJob, error) {
+	if f.cronjobErr != nil {
+		return nil, f.cronjobErr
+	}
 	return filter(f.cronjobs, ns, func(c batchv1.CronJob) string { return c.Namespace }), nil
 }
 func (f *fakeReader) LimitRanges(_ context.Context, ns string) ([]corev1.LimitRange, error) {
+	if f.limitsErr != nil {
+		return nil, f.limitsErr
+	}
 	return filter(f.limits, ns, func(l corev1.LimitRange) string { return l.Namespace }), nil
 }
 func (f *fakeReader) ResourceQuotas(_ context.Context, ns string) ([]corev1.ResourceQuota, error) {
+	if f.quotasErr != nil {
+		return nil, f.quotasErr
+	}
 	return filter(f.quotas, ns, func(q corev1.ResourceQuota) string { return q.Namespace }), nil
 }
 func (f *fakeReader) MetricsAvailable(context.Context) (bool, string) {
@@ -80,6 +103,9 @@ func (f *fakeReader) MetricsAvailable(context.Context) (bool, string) {
 	return false, "metrics-server not installed"
 }
 func (f *fakeReader) PodMetrics(_ context.Context, ns string) ([]metricsapi.PodMetrics, error) {
+	if f.metricsErr != nil {
+		return nil, f.metricsErr
+	}
 	return filter(f.metrics, ns, func(m metricsapi.PodMetrics) string { return m.Namespace }), nil
 }
 
@@ -106,6 +132,10 @@ func node(name string, memGi int64, labels map[string]string) corev1.Node {
 			corev1.ResourceCPU:    *resource.NewMilliQuantity(4000, resource.DecimalSI),
 		}},
 	}
+}
+
+func ns(name string) corev1.Namespace {
+	return corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
 }
 
 func ctr(name, req, lim string) corev1.Container {
@@ -358,5 +388,163 @@ func TestMetricsUnavailableIsRecordedNotFatal(t *testing.T) {
 	}
 	if inv.MetricsNote == "" {
 		t.Fatal("capsize must say why usage data is missing, not just omit it")
+	}
+}
+
+// TestDeniedGuardrailReadIsNotAnAbsentGuardrail covers the difference between
+// "this namespace has no LimitRange" and "I was not allowed to look". Treating
+// the second as the first turns an RBAC gap into a fabricated CAP201, which is
+// exactly the sort of untrustworthy number capsize exists to avoid.
+func TestDeniedGuardrailReadIsNotAnAbsentGuardrail(t *testing.T) {
+	denied := errors.New(`limitranges is forbidden: User "dev" cannot list resource "limitranges"`)
+	f := &fakeReader{
+		nodes:      []corev1.Node{node("n1", 4, nil)},
+		namespaces: []corev1.Namespace{ns("prod"), ns("sandbox")},
+		limitsErr:  denied,
+	}
+
+	inv, warnings, err := Collect(context.Background(), f, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, n := range inv.Namespaces {
+		if !n.GuardrailsUnknown {
+			t.Errorf("%s: a denied read must be recorded as unknown", n.Name)
+		}
+		if n.Ungoverned() {
+			t.Errorf("%s: must not be reported as ungoverned when the read was denied", n.Name)
+		}
+	}
+
+	if !hasWarning(warnings, "cannot read limitranges or resourcequotas") {
+		t.Errorf("the gap has to be stated, not swallowed: %v", warnings)
+	}
+	if !hasWarning(warnings, "rather than reported as ungoverned") {
+		t.Errorf("the warning must say what capsize did about it: %v", warnings)
+	}
+}
+
+// TestReadableEmptyNamespaceIsStillUngoverned is the other side of the same
+// coin: a successful read that finds nothing is a real finding, and the fix
+// above must not have suppressed it.
+func TestReadableEmptyNamespaceIsStillUngoverned(t *testing.T) {
+	f := &fakeReader{
+		nodes:      []corev1.Node{node("n1", 4, nil)},
+		namespaces: []corev1.Namespace{ns("sandbox")},
+	}
+	inv, warnings, err := Collect(context.Background(), f, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inv.Namespaces) != 1 || !inv.Namespaces[0].Ungoverned() {
+		t.Fatalf("a namespace with neither guardrail is ungoverned: %+v", inv.Namespaces)
+	}
+	if hasWarning(warnings, "cannot read limitranges") {
+		t.Errorf("nothing was denied; there is nothing to warn about: %v", warnings)
+	}
+}
+
+func hasWarning(warnings []string, substr string) bool {
+	for _, w := range warnings {
+		if strings.Contains(w, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestEveryDeniedReadIsReported is the guard on docs/rbac.md. Each row is a
+// permission an operator might reasonably withhold, and the substring is the
+// promise that document makes about what happens when they do.
+//
+// The point is not the wording. It is that no denial is silent: a scan that
+// quietly drops a workload, or quietly undercounts a neighbor, produces a
+// number that reads exactly like a trustworthy one.
+func TestEveryDeniedReadIsReported(t *testing.T) {
+	denied := errors.New(`forbidden: User "dev" cannot list the resource`)
+
+	cases := []struct {
+		permission string
+		deny       func(*fakeReader)
+		want       string
+	}{
+		{"nodes", func(f *fakeReader) { f.nodesErr = denied },
+			"blast-radius scoring is disabled, cost findings only"},
+		{"namespaces", func(f *fakeReader) { f.nsErr = denied },
+			"only namespaces that already contain a visible workload"},
+		{"limitranges", func(f *fakeReader) { f.limitsErr = denied },
+			"rather than reported as ungoverned"},
+		{"resourcequotas", func(f *fakeReader) { f.quotasErr = denied },
+			"rather than reported as ungoverned"},
+		{"replicasets", func(f *fakeReader) { f.rsErr = denied },
+			"rather than to their deployment"},
+		{"jobs", func(f *fakeReader) { f.jobsErr = denied },
+			"rather than to their cronjob"},
+		{"cronjobs", func(f *fakeReader) { f.cronjobErr = denied },
+			"cannot list cronjobs"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.permission, func(t *testing.T) {
+			f := &fakeReader{
+				nodes:      []corev1.Node{node("n1", 4, nil)},
+				namespaces: []corev1.Namespace{ns("prod")},
+			}
+			tc.deny(f)
+
+			_, warnings, err := Collect(context.Background(), f, Options{})
+			if err != nil {
+				t.Fatalf("a denied %s must degrade, not fail: %v", tc.permission, err)
+			}
+			if !hasWarning(warnings, tc.want) {
+				t.Errorf("denying %s must be reported with %q, got %v",
+					tc.permission, tc.want, warnings)
+			}
+		})
+	}
+}
+
+// TestDeniedClusterWidePodsFailsAnAllNamespacesScan is the one denial that is
+// not survivable, and docs/rbac.md says so: with no pod list there is no
+// inventory to report at all.
+func TestDeniedClusterWidePodsFailsAnAllNamespacesScan(t *testing.T) {
+	f := &fakeReader{
+		nodes:      []corev1.Node{node("n1", 4, nil)},
+		namespaces: []corev1.Namespace{ns("prod")},
+		allPodsErr: errors.New("forbidden"),
+	}
+	if _, _, err := Collect(context.Background(), f, Options{}); err == nil {
+		t.Error("a -A scan with no pod list must fail rather than report an empty cluster")
+	}
+}
+
+// TestDeniedMetricsKeepsStaticFindings records the split that matters most for
+// a narrow binding: usage-based rules go away, everything static stays.
+func TestDeniedMetricsKeepsStaticFindings(t *testing.T) {
+	f := &fakeReader{
+		nodes:      []corev1.Node{node("n1", 4, nil)},
+		namespaces: []corev1.Namespace{ns("prod")},
+		deploys: []appsv1.Deployment{{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "prod", Name: "api"},
+			Spec: appsv1.DeploymentSpec{Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{Containers: []corev1.Container{ctr("app", "1Gi", "")}},
+			}},
+		}},
+		metricsUp:  true,
+		metricsErr: errors.New("forbidden"),
+	}
+	inv, _, err := Collect(context.Background(), f, Options{WithMetrics: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv.MetricsAvailable {
+		t.Error("a denied metrics read is not available metrics")
+	}
+	if !strings.Contains(inv.MetricsNote, "registered but the read failed") {
+		t.Errorf("capsize must say why usage data is missing, got %q", inv.MetricsNote)
+	}
+	if len(inv.Workloads) != 1 {
+		t.Errorf("static collection is unaffected by a metrics denial: %+v", inv.Workloads)
 	}
 }
