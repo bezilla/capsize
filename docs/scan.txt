@@ -1,0 +1,54 @@
+capsize  context kind-capsize  scope namespace sandbox
+usage data: metrics-server
+
+! 1 cost recommendation(s) here would increase blast radius
+
+BLAST RADIUS
+  RISK   RATIO  NBRS  SPOT  CEILING   REQUEST  KIND        WORKLOAD                       NODE             FLAGS
+  128.9  64x    3     -     644.4Mi*  ~10Mi    Deployment  sandbox/orphan-job             capsize-worker   2 finding(s)
+  12.2   5.3x   4     -     2.6Gi*    512Mi    Deployment  sandbox/overprovisioned-cache  capsize-worker2  contradiction 3 finding(s)
+  5.03   2.5x   3     -     644.4Mi*  256Mi    Deployment  sandbox/legacy-worker          capsize-worker   1 finding(s)
+  2.32   1.0x   4     -     1Gi       1Gi      Deployment  sandbox/limits-only            capsize-worker2  2 finding(s)
+
+CONTRADICTIONS (1)
+  sandbox/overprovisioned-cache (Deployment, risk 12.2)
+    cutting the memory request from 512Mi to 51Mi releases 461Mi per pod but raises blast
+    radius 10x (12.2 -> 122.6): with no memory limit set, the request is the only number
+    holding this workload below 2.6Gi of allocatable memory on capsize-worker2, which it
+    shares with 4 other workload(s). Do this first: set a memory limit (nothing currently
+    bounds this below 2.6Gi of node capsize-worker2).
+
+FINDINGS (8)
+  critical CAP102  sandbox/orphan-job/app  no resource limits
+    declares no CPU or memory limit, so its memory ceiling is the whole of capsize-worker
+    (644.4Mi) and it shares that node with 3 other workload(s)
+  critical CAP102  sandbox/overprovisioned-cache/app  no resource limits
+    declares no CPU or memory limit, so its memory ceiling is the whole of capsize-worker2
+    (2.6Gi) and it shares that node with 4 other workload(s)
+  critical CAP102  sandbox/legacy-worker/app  no resource limits
+    declares no CPU or memory limit, so its memory ceiling is the whole of capsize-worker
+    (644.4Mi) and it shares that node with 3 other workload(s)
+  warn     CAP101  sandbox/orphan-job/app  no resource requests
+    declares neither requests nor limits, so the scheduler treats it as free and packs it
+    onto any node with room; the pod is BestEffort and is evicted first
+  warn     CAP107  sandbox/overprovisioned-cache  memory request far above observed usage
+    requests 512Mi of memory but its busiest pod uses 40.4Mi (13x over-provisioned across 1
+    replica(s)); a request of 51Mi would hold 1.2x headroom
+  warn     CAP201  sandbox  namespace has no LimitRange and no ResourceQuota
+    neither a LimitRange nor a ResourceQuota exists in sandbox, so a pod admitted here may
+    declare nothing and consume everything; 4 workload(s) currently rely on that
+  info     CAP103  sandbox/limits-only/app  memory request left implicit
+    limits memory to 1Gi and declares no memory request, so Kubernetes defaults the request
+    to the limit: the scheduler reserves 1Gi and this pod is Guaranteed. The outcome is
+    right but implicit - spell out requests.memory: 1Gi so the reservation cannot move
+    silently when someone edits the limit
+  info     CAP105  sandbox/limits-only/app  CPU request left implicit
+    limits CPU to 1 and declares no CPU request, so Kubernetes defaults the request to the
+    limit: the scheduler reserves 1 and this pod is Guaranteed. Spell out requests.cpu: 1 so
+    the reservation cannot move silently when someone edits the limit
+
+SUMMARY
+  4 workload(s) scored; 9 finding(s): 4 critical, 3 warn, 2 info, 1 of which is a cost fix
+  that raises blast radius
+  highest blast radius: 128.9 (sandbox/orphan-job)
+  * ceiling is the node's allocatable memory because no container limit bounds it

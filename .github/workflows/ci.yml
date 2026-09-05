@@ -71,6 +71,19 @@ jobs:
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
+  docs:
+    name: docs match the capture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The README's terminal block, docs/scan.txt and every figure quoted in
+      # prose all come from one capsize run, because absolute scores move with
+      # node size and a page mixing two hosts contradicts itself. This is the
+      # check half of docs/capture.sh; it reads committed files only, so it
+      # needs neither a cluster nor freeze.
+      - name: docs/capture.sh --check
+        run: ./docs/capture.sh --check
+
   readonly:
     name: read-only guard
     runs-on: ubuntu-latest

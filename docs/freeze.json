@@ -1,0 +1,9 @@
+{
+  "window": true,
+  "background": "#171717",
+  "margin": [12, 12, 12, 12],
+  "padding": [20, 20, 20, 20],
+  "border": { "radius": 8, "width": 0 },
+  "font": { "family": "JetBrains Mono", "size": 14 },
+  "line_height": 1.2
+}
