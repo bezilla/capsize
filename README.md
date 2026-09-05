@@ -38,6 +38,12 @@ go install github.com/bezilla/capsize@latest
 
 No agent, no cluster-side install, no account, no credentials beyond the kubeconfig `kubectl` already uses.
 
+The complete permission set is one `list`-only ClusterRole,
+[`deploy/rbac/capsize-readonly.yaml`](deploy/rbac/capsize-readonly.yaml) — one
+rule per call site, no `get`, no `watch`. [`docs/rbac.md`](docs/rbac.md) says
+what capsize does without each one, because a narrower binding degrades in
+stated ways rather than failing.
+
 ## Use
 
 ```bash
@@ -47,6 +53,10 @@ capsize -A --top 10          # the ten riskiest workloads
 capsize -A --json            # full report, machine-readable
 capsize -A --fail-on warn    # exit 2 in CI if anything is warn or worse
 ```
+
+`--json` carries a `schemaVersion`, and what a consumer may rely on is written
+down in [`docs/json-contract.md`](docs/json-contract.md). A test fails the
+build if the shape changes without the version moving.
 
 Scanning one namespace of the [test fixture](#testing) — a `kind` cluster built to be broken in specific ways:
 
@@ -168,6 +178,8 @@ capsize never writes to your cluster. That's not a promise in a README, it's thr
 
 Layer three was verified by breaking it on purpose: a `.Update()` call was added, the build failed with the file and line, and it passed again once removed. A fourth test feeds the walker a synthetic write so it can't pass vacuously.
 
+If you find a way past any of the three, [`SECURITY.md`](SECURITY.md) says how to report it — that is the bug I most want to hear about.
+
 ## Limitations
 
 Written down because you should know them before you trust a number.
@@ -194,13 +206,23 @@ That fixture caught a genuine defect the unit tests could not: capsize read cont
 
 ## Roadmap
 
-- **Phase 1 — shipped.** Guardrails, blast radius, contradictions, JSON, CI gate.
-- **Phase 1.5.** Scheduling-aware neighbors · `--explain <workload>` to print the formula with this workload's numbers substituted, because a score is only useful if it can be argued with · `--since` window over metrics · `--baseline` diff so CI fails on newly introduced risk rather than pre-existing debt.
-- **Phase 2 — cost.** Public AWS pricing join. Waste priced, exposure priced, and every cost recommendation that raises blast radius called out in dollars.
+Phase 1 is shipped: guardrails, blast radius, contradictions, JSON, CI gate.
+
+What is not built yet — `--explain`, `--baseline`, scheduling-aware neighbors,
+a metrics window, dollar pricing — and why each would matter is in
+[`ROADMAP.md`](ROADMAP.md). Released changes are in
+[`CHANGELOG.md`](CHANGELOG.md).
 
 ## Related
 
 - [terragrunt-reference-architecture](https://github.com/bezilla/terragrunt-reference-architecture) — a sanitized OpenTofu + Terragrunt reference architecture (EKS, Aurora, CloudFront/WAF, keyless CI) — the kind of platform capsize is built to inspect.
+
+## Contributing
+
+The most useful thing you can send is a case where capsize is **wrong** — a
+score you can argue with, or a finding that should not have fired.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has the build, test and end-to-end
+commands, and the three things that will fail CI.
 
 ## License
 
