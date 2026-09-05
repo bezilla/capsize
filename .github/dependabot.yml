@@ -14,8 +14,10 @@ updates:
         patterns:
           - "k8s.io/*"
 
-  # The workflows pin actions by major tag, so this catches the majors
-  # themselves moving - which is what produced the Node deprecation notice.
+  # The workflows pin actions by commit SHA, which is what makes a rerun of an
+  # old commit reproducible - and what stops those pins ever updating on their
+  # own. Dependabot is therefore the only thing that moves them: it rewrites
+  # the SHA and the trailing version comment together.
   - package-ecosystem: github-actions
     directory: /
     schedule:

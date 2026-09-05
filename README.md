@@ -184,6 +184,8 @@ So there is also a **[fixture](https://github.com/bezilla/capsize-fixture): a fo
 
 The fixture manifests are vendored into `test/e2e/` and run on every push: CI spins the cluster, installs metrics-server, and asserts the oracle on values parsed from `--json` rather than on an exit code.
 
+That job is pinned end to end, because "reproducible" is a claim and not a mood: metrics-server is vendored at a fixed release with its checksum verified and its image pinned by digest, the `kind` node image is pinned by digest, and every action is pinned by commit SHA. A rerun of an old commit runs the code that commit was green against.
+
 That fixture caught a genuine defect the unit tests could not: capsize read container resources straight from the PodTemplateSpec and never applied Kubernetes' own defaulting, so a workload declaring limits and omitting requests was scored as if it had no reservation at all. It was ranked second-riskiest of sixteen. It belonged last. The unit tests passed because they asserted on a state a real cluster never produces.
 
 ## Roadmap

@@ -7,6 +7,12 @@ name: E2E
 # unit path. If this is red and CI is green, the regression is in behavior
 # against a real API server, which is exactly the class of bug that a green
 # unit suite missed once already.
+#
+# Everything this job installs is pinned to an exact artifact: the actions by
+# commit SHA, kind by release, the node image by digest, and metrics-server by
+# a vendored manifest whose checksum is verified before it is applied. The
+# claim being made is that a rerun of this commit next year runs the same
+# code, and a `latest` anywhere would make that false.
 on:
   push:
     branches: [main]
@@ -16,15 +22,22 @@ on:
 permissions:
   contents: read
 
+env:
+  # kindest/node:v1.34.0. A tag can be re-pushed; the digest is the cluster.
+  KIND_NODE_IMAGE: kindest/node@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
+  # The image the v0.9.0 tag in the vendored manifest resolved to when it was
+  # vendored. See test/e2e/metrics-server/README.md.
+  METRICS_SERVER_IMAGE: registry.k8s.io/metrics-server/metrics-server@sha256:d9862115e7c7881280d3d75ca26bda8ffc0fc213315979575bf23ce9826205c0
+
 jobs:
   e2e:
     name: fixture oracle
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -33,8 +46,11 @@ jobs:
         run: go build -o capsize .
 
       - name: create the fixture cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
+          version: v0.33.0          # the action's own default moves; this does not
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+          kubectl_version: v1.34.0
           config: test/e2e/fixture/kind-cluster.yaml
           cluster_name: capsize
           wait: 120s
@@ -46,7 +62,19 @@ jobs:
 
       - name: install metrics-server
         run: |
-          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          # Vendored, not fetched. releases/latest/download/components.yaml is
+          # moving remote code: the same commit could pass on Monday and fail
+          # on Tuesday because somebody else cut a release, and nobody could
+          # tell that apart from a regression in capsize. The checksum makes
+          # an edit to the vendored copy a deliberate act.
+          ( cd test/e2e/metrics-server && sha256sum -c components.yaml.sha256 )
+          kubectl apply -f test/e2e/metrics-server/components.yaml
+
+          # The manifest names the image by tag; pin it to the digest that tag
+          # resolved to, so the container is pinned as tightly as the manifest.
+          kubectl set image deploy/metrics-server -n kube-system \
+            "metrics-server=${METRICS_SERVER_IMAGE}"
+
           # kind's kubelet serving certificates are self-signed.
           kubectl patch deploy metrics-server -n kube-system --type=json \
             -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
@@ -121,7 +149,7 @@ jobs:
 
       - name: upload report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: capsize-report
           path: report.json
