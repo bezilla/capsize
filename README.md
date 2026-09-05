@@ -1,7 +1,9 @@
 # capsize
 
 [![CI](https://github.com/bezilla/capsize/actions/workflows/ci.yml/badge.svg)](https://github.com/bezilla/capsize/actions/workflows/ci.yml)
+[![E2E](https://github.com/bezilla/capsize/actions/workflows/e2e.yml/badge.svg)](https://github.com/bezilla/capsize/actions/workflows/e2e.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bezilla/capsize)](https://goreportcard.com/report/github.com/bezilla/capsize)
+[![Release](https://img.shields.io/github/v/release/bezilla/capsize?color=blue)](https://github.com/bezilla/capsize/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A read-only Kubernetes CLI that scores cost waste and blast radius at the same time — and tells you where fixing one makes the other worse.**
@@ -35,6 +37,8 @@ Cost optimization and blast-radius containment can pull in **opposite directions
 ```bash
 go install github.com/bezilla/capsize@latest
 ```
+
+Or take a binary from [the latest release](https://github.com/bezilla/capsize/releases/latest) — darwin and linux, amd64 and arm64, with `checksums.txt` — and put it on your `PATH`. No Go toolchain needed to try it.
 
 No agent, no cluster-side install, no account, no credentials beyond the kubeconfig `kubectl` already uses.
 
