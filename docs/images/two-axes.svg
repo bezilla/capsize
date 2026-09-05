@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 640" width="1120" height="640"
+     role="img" aria-labelledby="ttl dsc">
+  <title id="ttl">Why cost and blast radius pull in opposite directions on the same edit</title>
+  <desc id="dsc">A workload requests 512Mi, uses 40Mi and sets no memory limit, so its ceiling is the
+  whole node. Cutting the request to 51Mi is one edit with two true consequences: it releases 461Mi
+  per pod, and because the ceiling is unchanged it multiplies the ceiling-to-request ratio, and
+  therefore the blast-radius score, by ten. Setting a memory limit first collapses the ceiling from
+  the node to the limit, after which the request is safe to cut.</desc>
+
+  <style>
+    /* Shared portfolio palette. Colour carries meaning, not decoration:
+         own    the cost axis — the saving every tool already reports
+         opt    the blast-radius axis — the consequence they do not
+         pivot  the ordering that resolves the disagreement
+         ext    context that is neither axis */
+    :root{
+      --bg:#eef1f6; --panel:#fafbfd; --ink:#1f2937; --dim:#4b5563;
+      --own:#2f6fed; --ext:#5b6675; --opt:#a8570a; --pivot:#7241d6;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#141a23; --panel:#1c2531; --ink:#e6eaf1; --dim:#a7b2c2;
+        --own:#74abff; --ext:#98a3b3; --opt:#f0b357; --pivot:#c3a3ff;
+      }
+    }
+    .bg{fill:var(--bg)}
+    text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+         fill:var(--ink)}
+    .h1{font-size:24px;font-weight:700}
+    .h2{font-size:14px;fill:var(--dim)}
+    .zone{font-size:13px;font-weight:700;letter-spacing:.08em}
+    .bt{font-size:15px;font-weight:600}
+    .lbl{font-size:12.5px;fill:var(--dim)}
+    .sm{font-size:11.5px;fill:var(--dim)}
+    .edge{font-size:12px;font-weight:600}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+    .panel{fill:var(--panel)}
+    .own-s{stroke:var(--own);fill:none}
+    .own-f{fill:var(--own);fill-opacity:.07;stroke:var(--own);stroke-opacity:.5}
+    .ext-f{fill:var(--ext);fill-opacity:.08;stroke:var(--ext);stroke-opacity:.5}
+    .opt-f{fill:var(--opt);fill-opacity:.09;stroke:var(--opt);stroke-opacity:.75}
+    .piv-f{fill:var(--pivot);fill-opacity:.08;stroke:var(--pivot);stroke-opacity:.6}
+    .t-own{fill:var(--own)} .t-ext{fill:var(--ext)} .t-opt{fill:var(--opt)} .t-piv{fill:var(--pivot)}
+    .f-own{fill:var(--own)} .f-opt{fill:var(--opt)} .f-piv{fill:var(--pivot)} .f-ext{fill:var(--ext)}
+    .flow{stroke:var(--own);stroke-width:2;fill:none}
+    .flow-opt{stroke:var(--opt);stroke-width:2;fill:none}
+    .flow-ext{stroke:var(--ext);stroke-width:2;fill:none}
+    .flow-piv{stroke:var(--pivot);stroke-width:2;fill:none}
+    .bound{stroke:var(--ext);stroke-width:2;stroke-dasharray:9 7;fill:none}
+  </style>
+
+  <defs>
+    <marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-own"/></marker>
+    <marker id="mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-opt"/></marker>
+    <marker id="me" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-ext"/></marker>
+    <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-piv"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1120" height="640" rx="10"/>
+
+  <text class="h1" x="40" y="44">Why the two axes fight</text>
+  <text class="h2" x="40" y="68">One edit, two true consequences. Every cost tool reports the first and none report the second.</text>
+
+  <!-- ===================== THE WORKLOAD AS FOUND ===================== -->
+  <rect class="ext-f" x="40" y="96" width="352" height="132" rx="10"/>
+  <text class="zone t-ext" x="58" y="122">AS FOUND</text>
+  <text class="bt mono" x="58" y="148">sandbox/overprovisioned-cache</text>
+  <text class="sm mono" x="58" y="170">requests 512Mi · uses 40Mi</text>
+  <text class="sm mono t-opt" x="58" y="190">no memory limit set</text>
+  <text class="sm" x="58" y="214">so its ceiling is the whole node</text>
+
+  <path class="flow-ext" marker-end="url(#me)" d="M392 162 H452"/>
+
+  <!-- ===================== THE EDIT ===================== -->
+  <rect class="panel" x="452" y="118" width="216" height="88" rx="9"/>
+  <rect class="own-s" x="452" y="118" width="216" height="88" rx="9"/>
+  <text class="zone t-own" x="468" y="142">THE EDIT</text>
+  <text class="bt mono" x="468" y="168">request 512Mi → 51Mi</text>
+  <text class="sm" x="468" y="190">what a cost tool recommends</text>
+
+  <!-- fan out to the two consequences -->
+  <path class="flow" marker-end="url(#mo)" d="M668 148 H700 Q716 148 716 132 V118 H752"/>
+  <path class="flow-opt" marker-end="url(#mk)" d="M668 178 H700 Q716 178 716 194 V262 H752"/>
+
+  <!-- ===================== CONSEQUENCE 1: COST ===================== -->
+  <rect class="own-f" x="752" y="88" width="328" height="94" rx="10"/>
+  <text class="zone t-own" x="770" y="112">COST — true</text>
+  <text class="bt" x="770" y="138">releases 461Mi per pod</text>
+  <text class="sm" x="770" y="160">the saving is real, and it is the</text>
+  <text class="sm" x="770" y="176">only half most tools compute</text>
+
+  <!-- ===================== CONSEQUENCE 2: BLAST RADIUS ===================== -->
+  <rect class="opt-f" x="752" y="216" width="328" height="122" rx="10"/>
+  <text class="zone t-opt" x="770" y="240">BLAST RADIUS — also true</text>
+  <text class="sm mono" x="770" y="264">ceiling unchanged (no limit to lower it)</text>
+  <text class="bt t-opt" x="770" y="292">ratio ×10  →  risk ×10</text>
+  <text class="sm" x="770" y="314">the request was the only number</text>
+  <text class="sm" x="770" y="330">holding the container off the node</text>
+
+  <!-- ===================== THE MECHANISM ===================== -->
+  <rect class="panel" x="40" y="266" width="672" height="122" rx="10"/>
+  <rect class="own-s" x="40" y="266" width="672" height="122" rx="10" stroke-opacity=".45"/>
+  <text class="zone t-ext" x="58" y="290">WHY — the ceiling term</text>
+  <text class="lbl mono" x="58" y="316">ceiling = min(node allocatable, container memory limit)</text>
+  <text class="lbl mono" x="58" y="338">ratio   = ceiling / request</text>
+  <text class="lbl mono" x="58" y="360">risk    = ratio × log2(1 + neighbors) × spot_factor</text>
+  <text class="sm" x="58" y="380">With no limit, min() picks the node — so cutting the request divides the denominator and nothing lowers the top.</text>
+
+  <!-- ===================== THE RESOLUTION ===================== -->
+  <rect class="piv-f" x="40" y="416" width="1040" height="118" rx="12"/>
+  <text class="zone t-piv" x="58" y="442">DO THIS FIRST — the ordering is the recommendation</text>
+  <text class="bt" x="58" y="470">Set a memory limit. The ceiling collapses from the node to the limit.</text>
+  <text class="lbl" x="58" y="494">Then the request is safe to cut: with the ceiling bounded, the same 461Mi comes back without handing an</text>
+  <text class="lbl" x="58" y="512">unbounded container the rest of the node. Both halves of the advice, in the order that makes them safe.</text>
+
+  <path class="flow-piv" marker-end="url(#mp)" d="M916 338 V416"/>
+
+  <!-- ===================== PROVENANCE ===================== -->
+  <path class="bound" d="M40 560 H1080" stroke-dasharray="4 6" stroke-opacity=".6"/>
+  <text class="sm" x="40" y="588">The ×10 is invariant: the ratio is linear in the request, so dividing the request by ten multiplies blast radius by ten on any</text>
+  <text class="sm" x="40" y="606">cluster. Absolute scores are not — they scale with node allocatable, which is why the e2e oracle asserts orderings and ratios</text>
+  <text class="sm" x="40" y="624">rather than fixed numbers. The figures quoted in this README come from the captured run in <tspan class="mono">docs/scan.svg</tspan>.</text>
+</svg>

@@ -119,21 +119,12 @@ SUMMARY
 
 ## Why the two axes fight
 
-```mermaid
-flowchart TD
-    A["overprovisioned-cache<br>requests 512Mi, uses 40Mi, no limit"]
-    A --> B["every cost tool sees this<br>and says: shrink the request"]
-    B --> C["scheduler now packs more<br>neighbors onto the node"]
-    B --> D["ceiling is unchanged:<br>nothing bounds it but the node"]
-    C --> E["blast radius 12.2 to 122.6"]
-    D --> E
-    E --> F["Do this first: set a memory limit.<br>Then the request is safe to cut."]
+![Why the two axes fight: a workload requesting 512Mi, using 40Mi and setting no memory limit, so its ceiling is the whole node; cutting the request to 51Mi releases 461Mi per pod and, because the ceiling is unchanged, multiplies the ceiling-to-request ratio and the blast-radius score by ten; setting a memory limit first collapses the ceiling to the limit, after which the request is safe to cut](docs/images/two-axes.svg)
 
-    style A fill:#1f2937,stroke:#4b5563,color:#f9fafb
-    style B fill:#374151,stroke:#4b5563,color:#f9fafb
-    style E fill:#7f1d1d,stroke:#b91c1c,color:#fef2f2
-    style F fill:#14532d,stroke:#16a34a,color:#f0fdf4
-```
+*One edit, two true consequences. The `×10` is the invariant part — the ratio is linear in the
+request, so dividing the request by ten multiplies blast radius by ten on any cluster. The absolute
+scores quoted on this page come from the captured run in [`docs/scan.svg`](docs/scan.svg); they scale
+with node allocatable, which is why the end-to-end oracle asserts orderings and ratios instead.*
 
 The savings are real — 461Mi per pod. Acting on them alone makes an outage more likely, because with no limit set the *request* is the only number holding that container below the node ceiling. Cut it and you have both freed the scheduler to pack more neighbors in **and** left the workload free to take everything.
 
