@@ -56,6 +56,85 @@ ceiling term is node allocatable memory, so the same workload scores 12.2 on a
 2.6Gi node and 30.43 on a 6.55Gi one. Assert orderings and ratios, which are
 the invariants — `test/e2e/assert_oracle.py` is the worked example.
 
+## Commit identity, and the one exception
+
+Every commit must be authored **and** committed from `bezilla@protonmail.com`.
+The address is asserted **exactly** — that is the field that identifies a person,
+and no repository setting stops a server-side merge from rewriting it.
+
+The **name** beside it is checked against a two-entry list:
+
+```
+ACCEPTED_NAMES=('Paul Bezilla' 'pjbezilla')
+```
+
+That is a deliberate exception, not an oversight. Three early commits were made
+as `pjbezilla` on the same address, and they are reachable from `v0.1.0` and
+`v0.1.1`. Correcting the name means rewriting those commits, which changes their
+hashes, which means deleting and recreating the tags — and that destroys three
+published releases whose binaries and `checksums.txt` people have already
+downloaded. A name that reads two ways is a smaller cost than a broken release,
+so the history stands and the check accommodates it.
+
+The exception is narrow in both directions, and the self-test asserts both:
+
+- a name nobody here has used is **rejected**, even on the canonical address
+- the canonical name on a **wrong address** is rejected — the list is not a way in
+- `pjbezilla` on the canonical address is **accepted**, so a future tightening
+  back to one entry fails a test rather than making this repository unpushable
+
+A `Signed-off-by` trailer does **not** get the allowance. The author field on
+three commits predates the gate; a sign-off is something you write deliberately
+today, so it must carry `Paul Bezilla <bezilla@protonmail.com>` exactly.
+
+## Commit trailers are allowlisted
+
+Only three keys may appear in a commit's trailer block, or in an annotated tag's
+annotation body. Every other key is refused:
+
+| trailer | rule |
+|---|---|
+| `Signed-off-by` | must be exactly `Paul Bezilla <bezilla@protonmail.com>` |
+| `Verified` | free text |
+| `Measured` | free text |
+
+This replaced a scan for a list of vendor and tool names, which matched nothing
+across the full history of all six repositories in this family — 207 commits. A
+denylist catches only what somebody thought to write down and cannot be
+completed; an allowlist refuses an unlisted key whether or not the gate has heard
+of what wrote it.
+
+### The trailer rule has one sharp edge
+
+Whether a `Key: Value` line is a trailer depends on **which paragraph it lands
+in**. git parses only the last paragraph, and only when the whole paragraph
+parses as trailers:
+
+```
+Cap the ceiling term                 Cap the ceiling term
+
+Verified: 3 runs, 0 failures.        Verified: 3 runs, 0 failures.
+
+And a closing paragraph.             ← nothing after it
+```
+
+The left-hand message ends in prose, so `Verified:` there is ordinary text the
+gate never looks at. The right-hand one ends with that line, so it **is** a
+trailer and its key must be allowlisted. Same words, two outcomes, decided by
+what comes after.
+
+The gate reads trailers with `git interpret-trailers --parse` — git's own
+definition, and the definition the tools that stamp provenance use. A `^Key:`
+regex would reject ordinary prose; five lines in this repository are `Key: Value`
+shaped and are not trailers (`exposed:`, `docs:`, `Verified:`, `Tests:`,
+`specific:`).
+
+If a push is refused for a trailer you thought was prose, check whether it ended
+up last. A new evidence word needs adding to the allowlist first.
+
+**History was not rewritten when this changed.** No force push, no retag, nothing
+dropped — which is the same reason the name exception exists in the first place.
+
 ## If you are changing the score
 
 The formula lives in exactly one function, `risk.Compute`, so that a

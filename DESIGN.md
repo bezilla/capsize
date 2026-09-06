@@ -187,6 +187,76 @@ nobody has seen fail is a guard nobody knows works.
 
 ---
 
+## 11. The identity gate asserts the address and allows two names
+
+**Decision.** The commit gate asserts `bezilla@protonmail.com` exactly, on both
+the author and the committer field, and checks the name against
+`ACCEPTED_NAMES=('Paul Bezilla' 'pjbezilla')`.
+
+**Why the address is the strict half.** It is the field that identifies a person.
+The name beside it is a display string git never verifies and anyone can set to
+anything, so asserting it exactly buys very little; asserting the address is what
+makes the check mean something.
+
+**Why the name has two entries.** Three commits early in this repository were
+made as `pjbezilla` on that same address, and they are reachable from `v0.1.0`
+and `v0.1.1`. Correcting the name rewrites those commits, which changes their
+hashes, which means deleting and recreating both tags — and that destroys two
+published releases whose binaries and checksums have already been downloaded. The
+trade is a name that reads two ways against a broken release history, and the
+release history wins.
+
+**Rejected: rewrite the three commits.** Considered and refused, twice. It is the
+only option that produces one spelling, and it costs published artefacts that
+people may already depend on. A gate exists to protect history, not to justify
+destroying it.
+
+**Rejected: drop the name check entirely.** Then any name on the canonical
+address passes, and the check stops saying anything about who wrote a commit. The
+two-entry list is narrower than that by exactly the amount the history requires.
+
+**How the exception is kept honest.** `.githooks/selftest.sh` asserts it in both
+directions: an unlisted name on the canonical address is rejected, the canonical
+name on a *wrong* address is rejected, and `pjbezilla` on the canonical address is
+accepted. A future tightening back to one entry fails a test rather than
+discovering the problem at push time, when the repository would simply be
+unpushable.
+
+The allowance covers the author and committer fields on commits and the tagger
+field on tags — all three are fields on objects that already exist. It does **not**
+cover a `Signed-off-by` trailer, which is written deliberately today and must
+carry the exact identity.
+
+## 12. Trailers are allowlisted, not searched for names
+
+**Decision.** Only `Signed-off-by` (carrying the exact canonical identity),
+`Verified` and `Measured` may appear as trailers. Every other key is refused.
+
+**Why.** What this replaced searched commit messages and every tree in the push
+range for a list of vendor and tool names. Across the full history of all six
+repositories in this family — 207 commits — that search matched nothing. A
+denylist catches only what somebody thought to write down; the set of tools that
+do not exist yet cannot be enumerated, so it is stale the day one ships. Any tool
+that stamps provenance onto a commit does it through a trailer, so policing the
+trailer block by allowlist refuses an unlisted key regardless of what wrote it.
+
+**Trailers are read with `git interpret-trailers --parse`, not a regex.** That is
+git's own definition — the last paragraph, and only when the whole paragraph
+parses as trailers. A `^Key:` regex would reject ordinary prose: five lines here
+are `Key: Value` shaped and are not trailers. The consequence worth knowing is
+that the same `Verified: ...` is prose mid-message and a trailer at the end.
+
+**Annotated tags are checked too**, which nothing did before: the tagger goes
+through the same address-exact, name-from-the-list rule, and the annotation body
+through the same allowlist. The tag body has its **signature stripped first** —
+`tag.gpgSign` is on, and a signed tag appends its signature block straight after
+the message with no blank line, so the final paragraph becomes
+message-plus-signature, which does not parse as trailers. Without stripping, the
+check would silently pass on every signed tag. The three existing tags are
+unsigned; every future one will not be.
+
+---
+
 ## The weak part: `neighbors` is an approximation
 
 `neighbors` counts distinct workloads with pods **currently running** on a
