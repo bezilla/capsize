@@ -3,9 +3,13 @@
 # Four binaries: darwin and linux, amd64 and arm64. The point is that trying
 # capsize should not require a Go toolchain.
 #
-# Local check before tagging anything:
+# Local check before tagging anything, always with --snapshot:
 #   goreleaser release --snapshot --clean
 #   ./dist/capsize_darwin_arm64*/capsize version
+#
+# Without --snapshot this publishes for real and races the Release workflow the
+# tag push started. The loser gets 422 already_exists on every asset. Pushing
+# the tag is the only publish path; see "Cutting a release" in CONTRIBUTING.md.
 version: 2
 
 project_name: capsize

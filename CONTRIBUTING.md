@@ -135,6 +135,57 @@ up last. A new evidence word needs adding to the allowlist first.
 **History was not rewritten when this changed.** No force push, no retag, nothing
 dropped — which is the same reason the name exception exists in the first place.
 
+## Cutting a release
+
+Push the tag. That is the whole procedure, and it is the only publish path.
+
+```sh
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
+```
+
+`release.yml` fires on `v*`, builds the four binaries and uploads them with
+`checksums.txt`. Nothing else publishes.
+
+Locally, only ever the snapshot:
+
+```sh
+goreleaser release --snapshot --clean   # builds; touches GitHub not at all
+./dist/capsize_darwin_arm64*/capsize version
+```
+
+**`goreleaser release` without `--snapshot` publishes for real** when a
+`GITHUB_TOKEN` is in the environment, and it races the workflow the tag push has
+already started. Both produce the same asset names on the same release, the
+first to finish wins, and the second gets one of these per asset:
+
+```
+upload failed  error=POST https://uploads.github.com/repos/bezilla/capsize/releases/N/assets?name=capsize_0.2.0_linux_arm64.tar.gz: 422 Validation Failed [{Resource:ReleaseAsset Field:name Code:already_exists Message:}]
+⨯ release failed  error=scm releases: failed to publish artifacts
+```
+
+Five 422s and a red X on a Release run whose build steps all passed. That is the
+signature, and it happened on v0.2.0.
+
+The other tell is the uploader, which says which machine won:
+
+```sh
+gh api repos/bezilla/capsize/releases/tags/v0.2.0 \
+  --jq '.assets[] | "\(.name)\t\(.uploader.login)"'
+```
+
+CI uploads as `github-actions[bot]`. A local run uploads as a username.
+
+The release survives this — the winner's assets are complete and verify against
+`checksums.txt`, and the loser uploaded nothing. Leave the failed run red.
+Clearing it means deleting good assets to re-upload them, trading a cosmetic X
+for a window in which the release has no binaries at all.
+
+`release.replace_existing_artifacts: true` would let the second run overwrite
+instead of fail. It is deliberately unset: `buildinfo.Date` stamps wall-clock
+build time, so the two runs' archives are not byte-identical, and whichever
+finished last would quietly decide which machine's binaries ship.
+
 ## If you are changing the score
 
 The formula lives in exactly one function, `risk.Compute`, so that a
