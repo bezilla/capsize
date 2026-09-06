@@ -97,3 +97,29 @@ jobs:
       # guarantee is enforced on every push rather than asserted in a README.
       - name: AST walk for write-shaped calls and unauthorised imports
         run: go test -v ./internal/guard/...
+
+  identity:
+    name: identity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The gate checks every commit, so it needs every commit. With the
+          # default shallow clone it would check one and report success.
+          fetch-depth: 0
+
+      - name: install gitleaks
+        run: |
+          version=8.24.0
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: identity and attribution over all history
+        # The same file the pre-push hook runs, in its --all-history mode. The
+        # hook is per-clone configuration and does not travel with a clone, so
+        # this is the copy nobody can forget to install.
+        run: ./.githooks/pre-push --all-history
+
+      - name: prove the gate still rejects bad history
+        run: ./.githooks/selftest.sh
