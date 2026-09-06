@@ -132,6 +132,31 @@ shaped and are not trailers (`exposed:`, `docs:`, `Verified:`, `Tests:`,
 If a push is refused for a trailer you thought was prose, check whether it ended
 up last. A new evidence word needs adding to the allowlist first.
 
+### What the allowlist does not catch, on purpose
+
+Two things pass this gate that an earlier version of it would have stopped. Both
+are the deliberate reduction, not an oversight.
+
+**A vendor or tool name in the body of a message.** The allowlist reads the
+trailer block and nothing else, so such a name written in a paragraph of prose is
+ordinary text and is accepted. Attribution is stamped as a trailer, and an
+unlisted key is refused whether or not the gate has heard of the tool that wrote
+it — a stronger guarantee than a name list can give, because it does not need
+updating when a new tool ships. Matching words in prose is a different job, and
+the denylist that did it matched nothing across the full history of every
+repository in this family.
+
+**Anything in the working tree.** Nothing greps the checkout for vendor names.
+Hand-written hooks under `.git/hooks/` once did, and `core.hooksPath` makes git
+ignore that directory entirely, so any that survive there are inert. They have
+not been restored and should not be: it is the same scan with the same zero
+matches, and it walked build artefacts, so a full validation run could leave a
+clean tree unpushable.
+
+The same trade is taken in every repository that shares this gate. Consistency
+across them is the property worth keeping — a one-repository exception would be
+the defect, not the fix.
+
 **History was not rewritten when this changed.** No force push, no retag, nothing
 dropped — which is the same reason the name exception exists in the first place.
 
