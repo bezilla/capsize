@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
 #
-# selftest: proves the pre-push gate actually rejects what it claims to reject.
+# selftest: proves the pre-push gate rejects what it claims to reject, and --
+# just as important -- accepts what it claims to accept.
 #
-# A gate nobody has watched fail is a gate nobody knows works. Each case below
-# builds a throwaway repository, produces exactly one kind of bad history, and
-# feeds the hook the same stdin git would feed it on a real push:
+# A gate nobody has watched fail is a gate nobody knows works, and a gate only
+# ever watched to refuse could be one that refuses everything. Each case builds a
+# throwaway repository, produces exactly one kind of history, and feeds the hook
+# the same stdin git would feed it on a real push:
 #
 #     <local ref> <local sha> <remote ref> <remote sha>
 #
-# The forbidden literals are BUILT AT RUNTIME from octal escapes. This file is
-# committed, so the hook scans it too; if the literals appeared here directly the
-# suite would make the repository unpushable. Case 0 checks the constructed
-# strings really do match the hook's pattern, so the escaping cannot rot into a
-# test that passes by testing nothing.
+# Two of these cases exist to hold a decision in place rather than to catch a
+# bug: the address is asserted exactly, the name is checked against a short list,
+# and both halves of that are asserted so a future "tidy-up" fails a test instead
+# of making this repository unpushable. See DESIGN.md.
+#
+# Every case captures the hook's status with `|| rc=$?` rather than running it
+# bare and reading `$?`. CI runs its steps under `bash -eo pipefail`, where a
+# bare non-zero command kills the step before the assertion is reached, so the
+# other shape reports nothing on exactly the cases it exists to prove.
 
 set -uo pipefail
 
@@ -20,17 +26,14 @@ HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pre-push"
 ZERO='0000000000000000000000000000000000000000'
 CANON_NAME='Paul Bezilla'
 CANON_EMAIL='bezilla@protonmail.com'
-
-# Built from octal escapes so this file contains none of them literally.
-TERM_ASSISTANT="$(printf 'C\154aude')"
-TERM_VENDOR="$(printf 'Anthrop\151c')"
-TERM_TRAILER="$(printf 'Co-Auth\157red-By')"
+CANON="${CANON_NAME} <${CANON_EMAIL}>"
+HISTORICAL_NAME='pjbezilla'
 
 pass=0
 fail=0
 
-ok()   { printf '  \033[32mok\033[0m   %s\n' "$1"; pass=$((pass + 1)); }
-bad()  { printf '  \033[31mFAIL\033[0m %s\n' "$1"; fail=$((fail + 1)); }
+ok()  { printf '  \033[32mok\033[0m   %-58s rc=%s\n' "$1" "${2:-0}"; pass=$((pass + 1)); }
+bad() { printf '  \033[31mFAIL\033[0m %-58s rc=%s\n' "$1" "${2:-?}"; fail=$((fail + 1)); }
 
 # Build a throwaway repo with one clean commit. Echoes its path.
 new_repo() {
@@ -45,139 +48,204 @@ new_repo() {
 	printf '%s' "$d"
 }
 
-# run_hook <repo> <remote_sha>  -> echoes exit status
-run_hook() {
-	local d="$1" base="$2" tip
-	tip="$(git -C "$d" rev-parse HEAD)"
-	( cd "$d" && printf 'refs/heads/main %s refs/heads/main %s\n' "$tip" "$base" | "$HOOK" origin >/dev/null 2>&1 )
-	printf '%s' "$?"
+commit_msg() {
+	local d="$1" msg="$2"
+	printf 'x %s\n' "$RANDOM" > "$d/file.txt"
+	git -C "$d" add -- file.txt
+	git -C "$d" commit -q -m "$msg"
 }
 
-# --- case 0: the escaping is real ---------------------------------------------
-pattern="$(grep -m1 '^FORBIDDEN=' "$HOOK" | sed "s/^FORBIDDEN='//; s/'$//")"
-miss=0
-for t in "$TERM_ASSISTANT" "$TERM_VENDOR" "$TERM_TRAILER"; do
-	printf '%s\n' "$t" | grep -qiE "$pattern" || miss=$((miss + 1))
-done
-if [ "$miss" -eq 0 ]; then
-	ok 'runtime-built literals still match the hook pattern'
-else
-	bad "$miss runtime-built literal(s) no longer match the pattern -- the suite is testing nothing"
-fi
+# run_hook <repo> <remote_sha>  -> echoes exit status
+run_hook() {
+	local d="$1" base="$2" tip rc=0
+	tip="$(git -C "$d" rev-parse HEAD)"
+	( cd "$d" && printf 'refs/heads/main %s refs/heads/main %s\n' "$tip" "$base" \
+		| "$HOOK" origin >/dev/null 2>&1 ) || rc=$?
+	printf '%s' "$rc"
+}
 
-# --- case 1: canonical identity passes ----------------------------------------
-d="$(new_repo)"
-printf 'a change\n' > "$d/file.txt"
-git -C "$d" add -- file.txt
-git -C "$d" commit -q -m 'Add a file'
-rc="$(run_hook "$d" "$ZERO")"
-[ "$rc" = '0' ] && ok 'canonical identity, clean tree: accepted' \
-                || bad "canonical identity was REJECTED (rc=$rc) -- the gate blocks good history"
+# run_hook_tag <repo> <tag> -> echoes exit status
+run_hook_tag() {
+	local d="$1" tag="$2" obj rc=0
+	obj="$(git -C "$d" rev-parse "refs/tags/${tag}")"
+	( cd "$d" && printf 'refs/tags/%s %s refs/tags/%s %s\n' "$tag" "$obj" "$tag" "$ZERO" \
+		| "$HOOK" origin >/dev/null 2>&1 ) || rc=$?
+	printf '%s' "$rc"
+}
+
+# --- 1: canonical identity passes ---------------------------------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" 'Add a file'
+rc="$(run_hook "$d" "$base")"
+[ "$rc" = '0' ] && ok 'canonical identity, clean commit: accepted' "$rc" \
+                || bad 'canonical identity was REJECTED -- the gate blocks good history' "$rc"
 rm -rf "$d"
 
-# --- case 2: wrong author fails -----------------------------------------------
-d="$(new_repo)"
-base="$(git -C "$d" rev-parse HEAD)"
-printf 'x\n' > "$d/file.txt"
-git -C "$d" add -- file.txt
+# --- 2: wrong author address --------------------------------------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+printf 'x\n' > "$d/file.txt"; git -C "$d" add -- file.txt
 GIT_AUTHOR_NAME='Somebody Else' GIT_AUTHOR_EMAIL='somebody@example.invalid' \
 	git -C "$d" commit -q -m 'Wrong author'
 rc="$(run_hook "$d" "$base")"
-[ "$rc" != '0' ] && ok 'wrong author: rejected' || bad 'wrong AUTHOR was accepted'
+[ "$rc" != '0' ] && ok 'wrong author address: rejected' "$rc" || bad 'wrong AUTHOR was accepted' "$rc"
 rm -rf "$d"
 
-# --- case 3: wrong committer fails --------------------------------------------
-# Distinct from case 2: server-side merges rewrite the committer while leaving
-# the author intact, so checking only the author would miss every merge-button
-# commit.
-d="$(new_repo)"
-base="$(git -C "$d" rev-parse HEAD)"
-printf 'x\n' > "$d/file.txt"
-git -C "$d" add -- file.txt
+# --- 3: wrong committer address -----------------------------------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+printf 'x\n' > "$d/file.txt"; git -C "$d" add -- file.txt
 GIT_COMMITTER_NAME='Some Service' GIT_COMMITTER_EMAIL='noreply@example.invalid' \
 	git -C "$d" commit -q -m 'Wrong committer'
 rc="$(run_hook "$d" "$base")"
-[ "$rc" != '0' ] && ok 'wrong committer: rejected' || bad 'wrong COMMITTER was accepted'
+[ "$rc" != '0' ] && ok 'wrong committer address: rejected' "$rc" || bad 'wrong COMMITTER was accepted' "$rc"
 rm -rf "$d"
 
-# --- case 4: attribution trailer in the message fails -------------------------
-d="$(new_repo)"
-base="$(git -C "$d" rev-parse HEAD)"
-printf 'x\n' > "$d/file.txt"
-git -C "$d" add -- file.txt
-git -C "$d" commit -q -m "Add a file
-
-${TERM_TRAILER}: ${TERM_ASSISTANT} <noreply@example.invalid>"
+# --- 4: the canonical NAME on a wrong address ---------------------------------
+# The name list is not a way in. The address is the identity, so the right name
+# beside the wrong address is still refused.
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+printf 'x\n' > "$d/file.txt"; git -C "$d" add -- file.txt
+GIT_AUTHOR_NAME="$CANON_NAME" GIT_AUTHOR_EMAIL='paul@example.invalid' \
+GIT_COMMITTER_NAME="$CANON_NAME" GIT_COMMITTER_EMAIL='paul@example.invalid' \
+	git -C "$d" commit -q -m 'Canonical name, wrong address'
 rc="$(run_hook "$d" "$base")"
-[ "$rc" != '0' ] && ok 'attribution trailer in message: rejected' \
-                 || bad 'attribution TRAILER was accepted'
+[ "$rc" != '0' ] && ok 'canonical name on a wrong address: rejected' "$rc" \
+                 || bad 'the canonical NAME on a WRONG ADDRESS was accepted' "$rc"
 rm -rf "$d"
 
-# --- case 5: attribution string in the tree fails -----------------------------
-d="$(new_repo)"
-base="$(git -C "$d" rev-parse HEAD)"
-printf 'written by %s\n' "$TERM_VENDOR" > "$d/notes.txt"
-git -C "$d" add -- notes.txt
-git -C "$d" commit -q -m 'Add notes'
-rc="$(run_hook "$d" "$base")"
-[ "$rc" != '0' ] && ok 'attribution string in tree: rejected' \
-                 || bad 'attribution string in the TREE was accepted'
-rm -rf "$d"
-
-# --- case 6: added then deleted inside one push range fails --------------------
-# The tip tree is clean. Only the intermediate commit is dirty, and that commit
-# would still be published. A hook that checked only the tip would pass this.
-d="$(new_repo)"
-base="$(git -C "$d" rev-parse HEAD)"
-printf 'written by %s\n' "$TERM_ASSISTANT" > "$d/oops.txt"
-git -C "$d" add -- oops.txt
-git -C "$d" commit -q -m 'Add a file that should not exist'
-git -C "$d" rm -q -- oops.txt
-git -C "$d" commit -q -m 'Remove it again'
-tip_clean=0
-git -C "$d" grep -qiE "$pattern" HEAD -- . 2>/dev/null || tip_clean=1
-rc="$(run_hook "$d" "$base")"
-if [ "$rc" != '0' ] && [ "$tip_clean" = '1' ]; then
-	ok 'forbidden term added then deleted in one range: rejected (tip tree was clean)'
-elif [ "$tip_clean" != '1' ]; then
-	bad 'case 6 is not testing what it claims: the tip tree still contains the term'
-else
-	bad 'added-then-deleted term was ACCEPTED -- only the tip is being checked'
-fi
-rm -rf "$d"
-
-# --- case 7: canonical address, name not on the accepted list ------------------
+# --- 5: canonical address, name not on the accepted list ----------------------
 # This repository asserts the address exactly and checks the name against a short
 # list, because three published commits carry a second spelling. That is not a
 # licence for any name: one nobody here has used is still rejected.
-d="$(new_repo)"
-base="$(git -C "$d" rev-parse HEAD)"
-printf 'x\n' > "$d/file.txt"
-git -C "$d" add -- file.txt
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+printf 'x\n' > "$d/file.txt"; git -C "$d" add -- file.txt
 GIT_AUTHOR_NAME='Someone Unlisted' GIT_AUTHOR_EMAIL="$CANON_EMAIL" \
-	GIT_COMMITTER_NAME='Someone Unlisted' GIT_COMMITTER_EMAIL="$CANON_EMAIL" \
+GIT_COMMITTER_NAME='Someone Unlisted' GIT_COMMITTER_EMAIL="$CANON_EMAIL" \
 	git -C "$d" commit -q -m 'Unlisted name on the canonical address'
 rc="$(run_hook "$d" "$base")"
-[ "$rc" != '0' ] && ok 'unlisted name on the canonical address: rejected' \
-                 || bad 'an UNLISTED NAME on the canonical address was accepted'
+[ "$rc" != '0' ] && ok 'unlisted name on the canonical address: rejected' "$rc" \
+                 || bad 'an UNLISTED NAME on the canonical address was accepted' "$rc"
 rm -rf "$d"
 
-# --- case 8: the historical name variant is accepted --------------------------
+# --- 6: the historical name variant is accepted -------------------------------
 # The other half of the same decision. v0.1.0 and v0.1.1 are reachable from
 # commits made under this name; if the gate rejected it the repository could not
 # be pushed at all without rewriting the tags and destroying the release
 # binaries. This case fails if someone "tightens" the list back to one entry.
-d="$(new_repo)"
-base="$(git -C "$d" rev-parse HEAD)"
-printf 'x\n' > "$d/file.txt"
-git -C "$d" add -- file.txt
-GIT_AUTHOR_NAME='pjbezilla' GIT_AUTHOR_EMAIL="$CANON_EMAIL" \
-	GIT_COMMITTER_NAME='pjbezilla' GIT_COMMITTER_EMAIL="$CANON_EMAIL" \
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+printf 'x\n' > "$d/file.txt"; git -C "$d" add -- file.txt
+GIT_AUTHOR_NAME="$HISTORICAL_NAME" GIT_AUTHOR_EMAIL="$CANON_EMAIL" \
+GIT_COMMITTER_NAME="$HISTORICAL_NAME" GIT_COMMITTER_EMAIL="$CANON_EMAIL" \
 	git -C "$d" commit -q -m 'Historical name variant'
 rc="$(run_hook "$d" "$base")"
-[ "$rc" = '0' ] && ok 'historical name variant on the canonical address: accepted' \
-               || bad "historical name variant was REJECTED (rc=$rc) -- v0.1.x history would be unpushable"
+[ "$rc" = '0' ] && ok 'historical name variant on the canonical address: accepted' "$rc" \
+                || bad 'historical name variant was REJECTED -- v0.1.x would be unpushable' "$rc"
 rm -rf "$d"
 
-printf '\n%d passed, %d failed\n' "$pass" "$fail"
+# --- 7: a trailer key outside the allowlist -----------------------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" 'Add a file
+
+Reviewed-by: Someone <someone@example.invalid>'
+rc="$(run_hook "$d" "$base")"
+[ "$rc" != '0' ] && ok 'disallowed trailer key: rejected' "$rc" \
+                 || bad 'a trailer OUTSIDE the allowlist was accepted' "$rc"
+rm -rf "$d"
+
+# --- 8: Signed-off-by, canonical ----------------------------------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" "Add a file
+
+Signed-off-by: ${CANON}"
+rc="$(run_hook "$d" "$base")"
+[ "$rc" = '0' ] && ok 'Signed-off-by, canonical identity: accepted' "$rc" \
+                || bad 'the permitted sign-off was REJECTED' "$rc"
+rm -rf "$d"
+
+# --- 9: Signed-off-by under the HISTORICAL name is refused --------------------
+# The name allowance covers the author field on commits that already exist. A
+# sign-off is written deliberately, today, so it gets the exact identity.
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" "Add a file
+
+Signed-off-by: ${HISTORICAL_NAME} <${CANON_EMAIL}>"
+rc="$(run_hook "$d" "$base")"
+[ "$rc" != '0' ] && ok 'Signed-off-by under the historical name: rejected' "$rc" \
+                 || bad 'a sign-off under the historical name was accepted' "$rc"
+rm -rf "$d"
+
+# --- 10: Verified and Measured take free text ---------------------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" 'Add a file
+
+Verified: read-only guard passes on all packages.'
+rc="$(run_hook "$d" "$base")"
+[ "$rc" = '0' ] && ok 'Verified, free text: accepted' "$rc" || bad 'Verified was REJECTED' "$rc"
+rm -rf "$d"
+
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" 'Add a file
+
+Measured: 3 runs, 0 failures.'
+rc="$(run_hook "$d" "$base")"
+[ "$rc" = '0' ] && ok 'Measured, free text: accepted' "$rc" || bad 'Measured was REJECTED' "$rc"
+rm -rf "$d"
+
+# --- 11: an unlisted evidence key is refused ----------------------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" 'Add a file
+
+Tested: every package green.'
+rc="$(run_hook "$d" "$base")"
+[ "$rc" != '0' ] && ok 'unlisted evidence key (Tested): rejected' "$rc" \
+                 || bad 'an unlisted evidence key was accepted' "$rc"
+rm -rf "$d"
+
+# --- 12: a mid-message Key: Value line is not a trailer -----------------------
+d="$(new_repo)"; base="$(git -C "$d" rev-parse HEAD)"
+commit_msg "$d" 'Add a file
+
+Verified: this line is not in the final paragraph.
+
+So it is prose, and this paragraph is what makes it so.'
+rc="$(run_hook "$d" "$base")"
+[ "$rc" = '0' ] && ok 'mid-message Key: Value, not a trailer: accepted' "$rc" \
+                || bad 'ordinary prose was treated as a trailer and REJECTED' "$rc"
+rm -rf "$d"
+
+# --- 13: annotated tags -------------------------------------------------------
+d="$(new_repo)"
+GIT_COMMITTER_NAME='Some Service' GIT_COMMITTER_EMAIL='noreply@example.invalid' \
+	git -C "$d" tag -a v9.9.9 -m 'Release nine'
+rc="$(run_hook_tag "$d" 'v9.9.9')"
+[ "$rc" != '0' ] && ok 'annotated tag, wrong tagger: rejected' "$rc" \
+                 || bad 'a tag tagged by somebody else was accepted' "$rc"
+rm -rf "$d"
+
+d="$(new_repo)"
+git -C "$d" tag -a v1.0.0 -m 'Release one'
+rc="$(run_hook_tag "$d" 'v1.0.0')"
+[ "$rc" = '0' ] && ok 'annotated tag, canonical tagger: accepted' "$rc" \
+                || bad 'a correctly tagged release was REJECTED' "$rc"
+rm -rf "$d"
+
+# The tagger goes through the same name list as a commit, for the same reason:
+# v0.1.0 and v0.1.1 are exactly the tags the allowance exists to protect.
+d="$(new_repo)"
+GIT_COMMITTER_NAME="$HISTORICAL_NAME" GIT_COMMITTER_EMAIL="$CANON_EMAIL" \
+	git -C "$d" tag -a v1.1.0 -m 'Release one point one'
+rc="$(run_hook_tag "$d" 'v1.1.0')"
+[ "$rc" = '0' ] && ok 'annotated tag, historical tagger name: accepted' "$rc" \
+                || bad 'the historical tagger name was REJECTED -- v0.1.x tags would fail' "$rc"
+rm -rf "$d"
+
+d="$(new_repo)"
+git -C "$d" tag -a v2.0.0 -m 'Release two
+
+Reviewed-by: Someone <someone@example.invalid>'
+rc="$(run_hook_tag "$d" 'v2.0.0')"
+[ "$rc" != '0' ] && ok 'disallowed trailer in a tag annotation: rejected' "$rc" \
+                 || bad 'a tag annotation carried a disallowed trailer' "$rc"
+rm -rf "$d"
+
+printf '\n%d as expected, %d unexpected\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
