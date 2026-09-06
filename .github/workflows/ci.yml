@@ -115,11 +115,11 @@ jobs:
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version
 
-      - name: identity and attribution over all history
+      - name: identity, trailers and tags over all history
         # The same file the pre-push hook runs, in its --all-history mode. The
         # hook is per-clone configuration and does not travel with a clone, so
         # this is the copy nobody can forget to install.
         run: ./.githooks/pre-push --all-history
 
-      - name: prove the gate still rejects bad history
+      - name: prove the gate rejects and accepts what it claims
         run: ./.githooks/selftest.sh
