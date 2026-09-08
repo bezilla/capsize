@@ -227,22 +227,20 @@ field on tags — all three are fields on objects that already exist. It does **
 cover a `Signed-off-by` trailer, which is written deliberately today and must
 carry the exact identity.
 
-## 12. Trailers are allowlisted, not searched for names
+## 12. Trailers are allowlisted, not matched against a name list
 
 **Decision.** Only `Signed-off-by` (carrying the exact canonical identity),
 `Verified` and `Measured` may appear as trailers. Every other key is refused.
 
-**Why.** What this replaced searched commit messages and every tree in the push
-range for a list of vendor and tool names. Across the full history of all six
-repositories in this family — 207 commits — that search matched nothing. A
-denylist catches only what somebody thought to write down; the set of tools that
-do not exist yet cannot be enumerated, so it is stale the day one ships. Any tool
-that stamps provenance onto a commit does it through a trailer, so policing the
-trailer block by allowlist refuses an unlisted key regardless of what wrote it.
+**Why.** What this replaced was a name-based denylist over commit messages and
+over every tree in the push range. A denylist can only refuse what somebody
+thought to write down; the set of keys that do not exist yet cannot be enumerated, so it is
+stale the day an unanticipated one appears. Refusing on the key means the
+allowlist refuses an unlisted trailer regardless of where it came from.
 
 **Trailers are read with `git interpret-trailers --parse`, not a regex.** That is
 git's own definition — the last paragraph, and only when the whole paragraph
-parses as trailers. A `^Key:` regex would reject ordinary prose: five lines here
+parses as trailers. A `^Key:` regex would reject ordinary prose: six lines here
 are `Key: Value` shaped and are not trailers. The consequence worth knowing is
 that the same `Verified: ...` is prose mid-message and a trailer at the end.
 

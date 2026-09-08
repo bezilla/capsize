@@ -8,6 +8,10 @@ these — see [`docs/json-contract.md`](docs/json-contract.md).
 
 ## Unreleased
 
+### Changed
+- The commit identity and trailer policy documentation was consolidated and
+  reworded. No gate, workflow or hook changed behaviour.
+
 ## [v0.2.0] — 2026-09-05
 
 JSON schemaVersion: **1.0.0** (first versioned shape).
