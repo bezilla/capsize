@@ -98,9 +98,9 @@ annotation body. Every other key is refused:
 | `Verified` | free text |
 | `Measured` | free text |
 
-This replaced a name-based denylist over commit messages. A denylist can only
-refuse what somebody thought to write down and cannot be completed; an allowlist refuses on the key,
-so an unlisted key is refused whether or not the gate has heard of it.
+A denylist can only refuse what somebody thought to write down and cannot be
+completed; an allowlist refuses on the key, so an unlisted key is refused whether
+or not the gate has heard of it.
 
 ### The trailer rule has one sharp edge
 

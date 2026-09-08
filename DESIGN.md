@@ -232,11 +232,10 @@ carry the exact identity.
 **Decision.** Only `Signed-off-by` (carrying the exact canonical identity),
 `Verified` and `Measured` may appear as trailers. Every other key is refused.
 
-**Why.** What this replaced was a name-based denylist over commit messages and
-over every tree in the push range. A denylist can only refuse what somebody
-thought to write down; the set of keys that do not exist yet cannot be enumerated, so it is
-stale the day an unanticipated one appears. Refusing on the key means the
-allowlist refuses an unlisted trailer regardless of where it came from.
+**Why.** A denylist can only refuse what somebody thought to write down; the set
+of keys that do not exist yet cannot be enumerated, so it is stale the day an
+unanticipated one appears. Refusing on the key means the allowlist refuses an
+unlisted trailer regardless of where it came from.
 
 **Trailers are read with `git interpret-trailers --parse`, not a regex.** That is
 git's own definition — the last paragraph, and only when the whole paragraph
